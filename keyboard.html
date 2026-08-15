@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <!-- Prevents zooming when tapping buttons on mobile -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>JDAW Mobile Studio (V26 Base)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg: #0a0a0c; --chassis-main: linear-gradient(145deg, #1f2128, #131418); --module-bg: #16171c;
+            --panel-border: #2c2f3a; --screen: #020a05; --neon-green: #00ff73; --neon-cyan: #00e5ff;
+            --neon-red: #ff2a55; --neon-amber: #ffaa00; --neon-purple: #b388ff; --text-main: #f8fafc; --text-muted: #64748b;
+        }
+
+        body { 
+            background: var(--bg); color: var(--text-main); font-family: 'Inter', sans-serif; 
+            display: flex; flex-direction: column; align-items: center; padding: 15px 10px; margin: 0; min-height: 100vh;
+        }
+
+        #status { 
+            width: 100%; box-sizing: border-box; text-align: center; padding: 10px; background: #b71c1c; color: white; 
+            border-radius: 6px; margin-bottom: 15px; font-weight: 900; font-size: 0.75rem; letter-spacing: 1px; 
+            box-shadow: 0 0 15px rgba(183, 28, 28, 0.5); transition: all 0.3s ease; position: sticky; top: 0; z-index: 100;
+        }
+
+        /* RESPONSIVE CHASSIS */
+        .daw-chassis {
+            background: var(--chassis-main); border: 2px solid #323642; border-bottom: 6px solid #0d0e11;
+            border-radius: 12px; padding: 15px; box-shadow: 0 15px 30px rgba(0,0,0,0.9);
+            width: 100%; max-width: 1200px; box-sizing: border-box;
+            display: grid; grid-template-columns: 1fr; gap: 15px;
+        }
+
+        @media (min-width: 900px) {
+            .daw-chassis { grid-template-columns: 400px 1fr; padding: 25px; gap: 25px; }
+            .mobile-order-1 { order: 0; } .mobile-order-2 { order: 0; }
+        }
+
+        /* HEADER & TRANSPORT */
+        .daw-header {
+            display: flex; flex-direction: column; gap: 15px; justify-content: center; align-items: center;
+            border-bottom: 2px solid var(--panel-border); padding-bottom: 15px; grid-column: 1 / -1;
+        }
+        @media (min-width: 600px) { .daw-header { flex-direction: row; justify-content: space-between; } }
+        
+        .daw-title { margin: 0; font-weight: 900; font-size: 1.5rem; letter-spacing: 2px; text-align: center; background: linear-gradient(90deg, #fff, #888); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        
+        .transport-bar { display: flex; gap: 10px; width: 100%; justify-content: center; }
+        .transport-btn {
+            background: linear-gradient(180deg, #2d303b, #1a1c23); border: 1px solid #000; border-top: 1px solid #444; color: #fff;
+            border-radius: 8px; flex-grow: 1; max-width: 80px; height: 50px; font-size: 1.4rem; cursor: pointer; display: flex; justify-content: center; align-items: center; box-shadow: 0 4px 6px rgba(0,0,0,0.5); touch-action: manipulation;
+        }
+        .transport-btn:active { transform: translateY(2px); box-shadow: 0 1px 2px rgba(0,0,0,0.5); }
+        .transport-btn.record.active { background: #3a000d; border-color: var(--neon-red); color: var(--neon-red); box-shadow: 0 0 15px rgba(255,42,85,0.5); }
+        .transport-btn.play.active { background: #002611; border-color: var(--neon-green); color: var(--neon-green); box-shadow: 0 0 15px rgba(0,255,115,0.5); }
+
+        /* MODULES */
+        .hardware-module { background: var(--module-bg); border: 1px solid #000; border-top: 1px solid #2a2c36; border-radius: 8px; padding: 15px; box-shadow: inset 0 5px 15px rgba(0,0,0,0.5); display: flex; flex-direction: column; align-items: stretch; }
+        .module-title { width: 100%; display: flex; justify-content: space-between; align-items: center; margin: 0 0 12px 0; font-size: 0.7rem; color: #828a9f; letter-spacing: 1px; font-weight: 900; border-bottom: 1px solid #2a2c36; padding-bottom: 6px; }
+
+        /* OLED SCREEN */
+        .oled-display {
+            background: var(--screen); border: 3px solid #000; border-radius: 8px; padding: 15px; font-family: 'Share Tech Mono', monospace; display: flex; flex-direction: column; gap: 15px; align-items: center; text-align: center;
+            box-shadow: inset 0 0 30px rgba(0,255,115,0.05); background-image: linear-gradient(rgba(0, 255, 115, 0.03) 1px, transparent 1px); background-size: 100% 3px;
+        }
+        @media (min-width: 600px) { .oled-display { flex-direction: row; justify-content: space-between; text-align: left; } }
+        
+        .oled-block { display: flex; flex-direction: column; }
+        .oled-lbl { color: #516b80; font-size: 0.65rem; font-family: 'Inter', sans-serif; font-weight: 900; letter-spacing: 1px; margin-bottom: 3px;}
+        .oled-val { color: var(--neon-cyan); font-size: 1.4rem; text-shadow: 0 0 10px rgba(0,229,255,0.6); }
+
+        /* PADS */
+        .mpc-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; width: 100%;}
+        .mpc-pad, .reg-pad {
+            background: linear-gradient(135deg, #2b2e38, #1a1c23); border: 2px solid #111; border-top: 2px solid #3a3d4a; border-radius: 6px; height: 55px; display: flex; justify-content: center; align-items: center; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.6); font-weight: 900; color: var(--text-muted); font-size: 0.75rem; touch-action: manipulation;
+        }
+        .mpc-pad:active, .reg-pad:active { transform: translateY(2px); box-shadow: 0 1px 2px rgba(0,0,0,0.8); }
+        
+        .mpc-pad.selected { border-color: var(--neon-cyan); box-shadow: 0 0 10px rgba(0,229,255,0.4); color: #fff; }
+        .mpc-pad.state-ARMED { border-color: var(--neon-red); background: #3a000d; color: var(--neon-red); }
+        .mpc-pad.state-RECORDING { background: #ff2a55; color: #fff; box-shadow: 0 0 15px rgba(255,42,85,0.8); }
+        .mpc-pad.state-PLAYING { background: #b37700; color: #fff; box-shadow: 0 0 15px rgba(255,170,0,0.6); }
+        .mpc-pad.state-STOPPED { color: var(--neon-green); border-color: var(--neon-green); }
+        
+        .mpc-pad.audio-selected { border-color: var(--neon-purple); box-shadow: 0 0 10px rgba(179,136,255,0.4); color: #fff; }
+        .mpc-pad.audio-state-RECORDING { background: #ff2a55; color: #fff; box-shadow: 0 0 15px rgba(255,42,85,0.8); }
+        .mpc-pad.audio-state-PLAYING { background: #5c35b3; color: #fff; box-shadow: 0 0 15px rgba(179,136,255,0.6); }
+        
+        .reg-pad.saved { border-color: #554400; color: var(--neon-amber); background: #2a2200; }
+
+        .jdaw-btn { background: linear-gradient(180deg, #2d303b, #1a1c23); color: #fff; border: 1px solid #000; border-top: 1px solid #444; border-radius: 6px; padding: 10px; font-size: 0.7rem; font-weight: 900; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.5); touch-action: manipulation;}
+        .jdaw-btn.active-red { background: #3a000d; border-color: var(--neon-red); color: var(--neon-red); box-shadow: 0 0 10px rgba(255,42,85,0.4); }
+
+        /* SYNTH & MIXER */
+        .tempo-synth-row { display: flex; flex-direction: column; gap: 15px; }
+        @media (min-width: 768px) { .tempo-synth-row { flex-direction: row; } }
+        
+        .touch-strip-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; width: 100%; }
+        @media (min-width: 768px) { .touch-strip-grid { grid-template-columns: repeat(3, 1fr); } }
+
+        .strip-input { -webkit-appearance: none; width: 100%; height: 8px; background: #000; border-radius: 4px; box-shadow: inset 0 1px 3px rgba(0,0,0,1); border: 1px solid #222; outline: none; touch-action: none; }
+        .strip-input::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 24px; background: #fff; border: 2px solid var(--neon-amber); border-radius: 3px; box-shadow: 0 0 10px rgba(255,170,0,0.8); margin-top: -8px; touch-action: none;}
+
+        .mixer-section { display: flex; gap: 20px; overflow-x: auto; padding: 10px 5px 20px 5px; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; }
+        .fader-wrapper { display: flex; flex-direction: column; align-items: center; width: 45px; flex-shrink: 0; scroll-snap-align: start; }
+        .fader-track { position: relative; width: 35px; height: 140px; display: flex; justify-content: center; align-items: center; background: #050505; border-radius: 4px; box-shadow: inset 0 0 10px #000; }
+        .fader-input { -webkit-appearance: none; width: 130px; height: 4px; background: transparent; transform: rotate(-90deg); position: absolute; z-index: 2; touch-action: none; }
+        .fader-input::-webkit-slider-thumb { -webkit-appearance: none; width: 32px; height: 45px; background: linear-gradient(to right, #1a1a1a, #444, #1a1a1a); border: 1px solid #000; border-top: 1px solid #666; border-radius: 3px; box-shadow: 0 8px 15px rgba(0,0,0,0.9); background-image: linear-gradient(to bottom, transparent 46%, var(--neon-cyan) 46%, var(--neon-cyan) 54%, transparent 54%); touch-action: none;}
+    </style>
+</head>
+<body>
+
+    <div id="status">MIDI Disconnected</div>
+
+    <div class="daw-chassis">
+        
+        <div class="daw-header">
+            <h2 class="daw-title">JDAW MOBILE STUDIO</h2>
+            <div class="transport-bar">
+                <button class="transport-btn record" id="loop-rec" onclick="toggleLooperRec()">⏺</button>
+                <button class="transport-btn play" id="loop-play" onclick="toggleLooperPlay()">⏵</button>
+                <button class="transport-btn stop" onclick="stopAllTracks()">⏹</button>
+            </div>
+        </div>
+
+        <!-- RIGHT COLUMN (Moves to Top on Mobile for UI visibility) -->
+        <div class="right-column mobile-order-1" style="display: flex; flex-direction: column; gap: 15px;">
+            
+            <div class="oled-display">
+                <div class="oled-block">
+                    <span class="oled-lbl">SELECTED TRACK</span>
+                    <span class="oled-val" id="display-active-track">MIDI 1 (CH 1)</span>
+                </div>
+                <div class="oled-block">
+                    <span class="oled-lbl" id="tone-lbl" style="color: var(--neon-cyan);">CASIO TONE</span>
+                    <span class="oled-val" id="current-tone" style="font-size: 1.8rem;">---</span>
+                </div>
+                <div class="oled-block" style="text-align: center;">
+                    <span class="oled-lbl">MIDI IN</span>
+                    <span class="oled-val" id="midi-note" style="color:var(--neon-green);">--</span>
+                </div>
+            </div>
+
+            <!-- MIXER (Swipeable on mobile) -->
+            <div class="hardware-module" style="border-top-color: var(--neon-cyan);">
+                <div class="module-title" style="color: var(--neon-cyan);">SWIPE MIXER ➔</div>
+                <div class="mixer-section" id="sliders-container"></div>
+            </div>
+
+            <div class="tempo-synth-row">
+                <div class="hardware-module" style="border-top-color: var(--neon-amber); flex-grow: 1;">
+                    <div class="module-title">SYNTHESIS ENGINE</div>
+                    <div class="touch-strip-grid" id="knobs-container"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- LEFT COLUMN (Stacks Below on Mobile) -->
+        <div class="hardware-module mobile-order-2" style="border-top-color: var(--neon-green);">
+            
+            <!-- 1. MIDI LOOPER -->
+            <div class="module-title">
+                <span>16-TRACK MIDI LOOPER</span>
+                <span id="looper-status" style="color:var(--neon-amber);">READY</span>
+            </div>
+            <div class="mpc-grid" id="tracks-container" style="margin-bottom: 25px;"></div>
+
+            <!-- 2. REGISTRATION MEMORY BANK -->
+            <div class="module-title" style="color: var(--neon-amber);">
+                <span>16-PAD REG MEMORY</span>
+                <button id="btn-reg-store" class="jdaw-btn" style="padding: 4px 10px;" onclick="toggleStoreMode()">STORE</button>
+            </div>
+            <div class="mpc-grid" id="reg-container" style="margin-bottom: 25px;"></div>
+
+            <!-- 3. AUDIO RECORDER -->
+            <div class="module-title" style="color: var(--neon-purple);">
+                <span>4-TRACK AUDIO RECORDER</span>
+            </div>
+            <button id="connect-audio-btn" class="jdaw-btn" style="width: 100%; margin-bottom: 12px; border-color: var(--neon-purple); color: var(--neon-purple);" onclick="initAudioInput()">🔌 CONNECT AUDIO</button>
+            
+            <div class="mpc-grid" id="audio-tracks-container" style="margin-bottom: 15px;">
+                <div class="mpc-pad audio-selected" id="btn-aud-0" onclick="selectAudioTrack(0)">A1</div>
+                <div class="mpc-pad" id="btn-aud-1" onclick="selectAudioTrack(1)">A2</div>
+                <div class="mpc-pad" id="btn-aud-2" onclick="selectAudioTrack(2)">A3</div>
+                <div class="mpc-pad" id="btn-aud-3" onclick="selectAudioTrack(3)">A4</div>
+            </div>
+
+            <div style="display: flex; gap: 8px;">
+                <button class="jdaw-btn" id="audio-rec-btn" onclick="toggleAudioRec()" style="color: var(--neon-red); flex-grow:1;">🔴 REC</button>
+                <button class="jdaw-btn" id="audio-play-btn" onclick="toggleAudioPlay()" style="color: var(--neon-purple); flex-grow:1;">⏵ PLAY</button>
+                <button class="jdaw-btn" onclick="clearAudioTrack()" style="color: #aaa;">🗑</button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- JAVASCRIPT: V26 LOGIC (100% Intact) -->
+    <script>
+        let midiOutput = null; 
+        let activeTrackMode = 'MIDI'; 
+        let globalCurrentTone = "---"; 
+
+        const knobMappings = [
+            { id: "K1", name: "Cutoff", cc: 74, default: 64 }, { id: "K2", name: "Reso", cc: 71, default: 64 },
+            { id: "K3", name: "Attack", cc: 73, default: 64 }, { id: "K4", name: "Decay", cc: 75, default: 64 },
+            { id: "K5", name: "Release", cc: 72, default: 64 }, { id: "K6", name: "Vibrato", cc: 76, default: 64 }
+        ];
+
+        const sliderMappings = [
+            { id: "S1", name: "Vol", cc: 7, default: 100 }, { id: "S2", name: "Pan", cc: 10, default: 64 },
+            { id: "S3", name: "Reverb", cc: 91, default: 40 }, { id: "S4", name: "Chorus", cc: 93, default: 0 },
+            { id: "S5", name: "Mod", cc: 1, default: 0 }, { id: "S6", name: "Expr", cc: 11, default: 127 },
+            { id: "S7", name: "VibDep", cc: 77, default: 64 }, { id: "S8", name: "VibDel", cc: 78, default: 64 },
+            { id: "S9", name: "Porta", cc: 5, default: 0 }
+        ];
+
+        function getDefaultParams() {
+            let p = {};
+            knobMappings.forEach(k => p[k.cc] = k.default);
+            sliderMappings.forEach(s => p[s.cc] = s.default);
+            return p;
+        }
+
+        const knobsContainer = document.getElementById('knobs-container');
+        knobMappings.forEach(k => {
+            knobsContainer.innerHTML += `
+                <div style="display:flex; flex-direction:column; gap:5px;">
+                    <div style="display:flex; justify-content:space-between; font-size:0.65rem; color:#888; font-weight:900;"><span>${k.name}</span> <span id="display-${k.id}" style="color:var(--neon-amber);">${k.default}</span></div>
+                    <input type="range" class="strip-input" id="${k.id}" min="0" max="127" value="${k.default}" oninput="handleControlMove('${k.id}', ${k.cc}, this.value)">
+                </div>`;
+        });
+
+        const slidersContainer = document.getElementById('sliders-container');
+        sliderMappings.forEach(s => {
+            slidersContainer.innerHTML += `
+                <div class="fader-wrapper">
+                    <span style="font-size:0.6rem; color:#888; font-weight:900; margin-bottom:10px;">${s.name}</span>
+                    <div class="fader-track"><input type="range" class="fader-input" id="${s.id}" min="0" max="127" value="${s.default}" oninput="handleControlMove('${s.id}', ${s.cc}, this.value)"></div>
+                    <span id="display-${s.id}" style="margin-top:10px; font-size:0.7rem; color:var(--neon-cyan); font-family:monospace; background:#000; padding:2px 4px; border-radius:3px;">${s.default}</span>
+                </div>`;
+        });
+
+        function syncUIToTrack(trackObj) {
+            knobMappings.forEach(k => { let val = trackObj.params[k.cc]; document.getElementById(k.id).value = val; document.getElementById(`display-${k.id}`).innerText = val; });
+            sliderMappings.forEach(s => { let val = trackObj.params[s.cc]; document.getElementById(s.id).value = val; document.getElementById(`display-${s.id}`).innerText = val; });
+        }
+
+        function handleControlMove(controlId, ccNumber, value) {
+            document.getElementById(`display-${controlId}`).innerText = value; let val = parseInt(value);
+            if (activeTrackMode === 'MIDI') {
+                let t = tracks[activeTrackIndex]; t.params[ccNumber] = val; 
+                if (midiOutput) midiOutput.send([0xB0 | t.channel, ccNumber, val]);
+            } else if (activeTrackMode === 'AUDIO') {
+                let t = audioTracks[activeAudioIndex]; t.params[ccNumber] = val; applyAudioParams(t, ccNumber, val); 
+            }
+        }
+
+        // ==========================================
+        // === V26 REGISTRATION MEMORY BANK =========
+        // ==========================================
+        let registrations = new Array(16).fill(null);
+        let isStoreMode = false;
+        const regContainer = document.getElementById('reg-container');
+
+        for (let i = 0; i < 16; i++) {
+            regContainer.innerHTML += `<div class="reg-pad" id="btn-reg-${i}" onclick="handleRegPad(${i})">R${i+1}</div>`;
+        }
+
+        function toggleStoreMode() {
+            isStoreMode = !isStoreMode;
+            document.getElementById('btn-reg-store').classList.toggle('active-red', isStoreMode);
+        }
+
+        function handleRegPad(index) {
+            let pad = document.getElementById(`btn-reg-${index}`);
+            if (isStoreMode) {
+                let t = activeTrackMode === 'MIDI' ? tracks[activeTrackIndex] : audioTracks[activeAudioIndex];
+                registrations[index] = { programNumber: globalCurrentTone, params: { ...t.params } };
+                pad.classList.add('saved'); toggleStoreMode();
+            } else {
+                let reg = registrations[index]; if (!reg) return; 
+                
+                if (midiOutput && activeTrackMode === 'MIDI' && reg.programNumber !== "---") {
+                    midiOutput.send([0xC0 | tracks[activeTrackIndex].channel, parseInt(reg.programNumber) - 1]);
+                }
+                
+                globalCurrentTone = reg.programNumber;
+                document.getElementById('current-tone').innerText = reg.programNumber;
+
+                let t = activeTrackMode === 'MIDI' ? tracks[activeTrackIndex] : audioTracks[activeAudioIndex];
+                t.params = { ...reg.params }; syncUIToTrack(t);
+
+                for (let cc in t.params) {
+                    if (activeTrackMode === 'MIDI' && midiOutput) midiOutput.send([0xB0 | tracks[activeTrackIndex].channel, parseInt(cc), t.params[cc]]);
+                    else if (activeTrackMode === 'AUDIO') applyAudioParams(t, parseInt(cc), t.params[cc]);
+                }
+            }
+        }
+
+        // ==========================================
+        // === 16-TRACK LOOPER ENGINE (MIDI) ========
+        // ==========================================
+        let tracks = []; let activeTrackIndex = 0; const tracksContainer = document.getElementById('tracks-container');
+        for (let i = 0; i < 16; i++) {
+            tracks.push({ id: i, channel: i, state: "EMPTY", data: [], duration: 0, startTime: 0, lastNoteTime: 0, playStartTime: 0, lastPlayTime: 0, activeNotes: [], params: getDefaultParams() });
+            let label = (i === 9) ? "DRUM" : `M${i+1}`;
+            tracksContainer.innerHTML += `<div class="mpc-pad ${i===0 ? 'selected' : ''}" id="btn-trk-${i}" onclick="selectTrack(${i})">${label}</div>`;
+        }
+
+        function selectTrack(index) {
+            activeTrackMode = 'MIDI'; activeTrackIndex = index;
+            for (let i = 0; i < 16; i++) {
+                let btn = document.getElementById(`btn-trk-${i}`);
+                if (i === index) btn.classList.add('selected'); else btn.classList.remove('selected');
+            }
+            for (let i = 0; i < 4; i++) document.getElementById(`btn-aud-${i}`).classList.remove('audio-selected');
+            
+            document.getElementById('display-active-track').innerText = (index === 9) ? "MIDI DRUMS (CH 10)" : `MIDI TRK ${index+1} (CH ${index+1})`;
+            document.getElementById('display-active-track').style.color = "var(--neon-green)";
+            document.getElementById('tone-lbl').innerText = "CASIO TONE";
+            syncUIToTrack(tracks[activeTrackIndex]); updateActionButtonsUI();
+        }
+
+        function updateTrackStatusUI(index) {
+            let t = tracks[index]; let btn = document.getElementById(`btn-trk-${index}`);
+            btn.classList.remove('state-ARMED', 'state-RECORDING', 'state-PLAYING', 'state-STOPPED');
+            if (t.state !== "EMPTY") btn.classList.add(`state-${t.state}`);
+            if (activeTrackMode === 'MIDI' && activeTrackIndex === index) updateActionButtonsUI();
+        }
+
+        function updateActionButtonsUI() {
+            let t = tracks[activeTrackIndex]; let btnRec = document.getElementById('loop-rec'); let btnPlay = document.getElementById('loop-play');
+            btnRec.classList.remove('active'); btnPlay.classList.remove('active');
+            if (t.state === "ARMED" || t.state === "RECORDING") btnRec.classList.add('active');
+            if (t.state === "PLAYING") btnPlay.classList.add('active');
+        }
+
+        function toggleLooperRec() {
+            let t = tracks[activeTrackIndex];
+            if (t.state === "RECORDING" || t.state === "ARMED") { t.state = (t.data.length > 0) ? "STOPPED" : "EMPTY"; document.getElementById('looper-status').innerText = "STOPPED"; } 
+            else { t.state = "ARMED"; t.data = []; t.lastNoteTime = 0; stopTrackNotes(activeTrackIndex); document.getElementById('looper-status').innerText = "ARMED..."; }
+            updateTrackStatusUI(activeTrackIndex);
+        }
+
+        function toggleLooperPlay() {
+            let t = tracks[activeTrackIndex];
+            if (t.state === "PLAYING") { t.state = "STOPPED"; stopTrackNotes(activeTrackIndex); document.getElementById('looper-status').innerText = "STOPPED"; } 
+            else if (t.state === "RECORDING") {
+                let bpm = 100; let measureMs = (60000 / bpm) * 4; 
+                let completedMeasures = Math.max(1, Math.ceil(t.lastNoteTime / measureMs)); t.duration = completedMeasures * measureMs;
+                t.data = t.data.filter(e => e.time < t.duration); t.state = "PLAYING"; t.playStartTime = t.startTime; 
+                let rawDuration = performance.now() - t.startTime; t.lastPlayTime = rawDuration % t.duration; 
+                document.getElementById('looper-status').innerText = "LOOPING";
+            } else if (t.state === "STOPPED" && t.data.length > 0) { t.state = "PLAYING"; t.playStartTime = performance.now(); t.lastPlayTime = 0; document.getElementById('looper-status').innerText = "LOOPING"; }
+            updateTrackStatusUI(activeTrackIndex);
+        }
+
+        function stopAllTracks() {
+            tracks.forEach((t, i) => { if (t.state === "PLAYING" || t.state === "RECORDING" || t.state === "ARMED") { t.state = (t.data.length > 0) ? "STOPPED" : "EMPTY"; stopTrackNotes(i); updateTrackStatusUI(i); }});
+            document.getElementById('looper-status').innerText = "ALL STOPPED";
+        }
+
+        function stopTrackNotes(index) {
+            if (!midiOutput) return; let t = tracks[index];
+            t.activeNotes.forEach(note => { midiOutput.send([0x80 | t.channel, note, 0]); }); t.activeNotes = [];
+        }
+
+        function masterEngine() {
+            let nowGlobal = performance.now();
+            tracks.forEach(t => {
+                if (t.state === "PLAYING") {
+                    let now = (nowGlobal - t.playStartTime) % t.duration;
+                    if (now < t.lastPlayTime) t.lastPlayTime = 0; 
+                    t.data.forEach(event => {
+                        if (event.time >= t.lastPlayTime && event.time < now) {
+                            if (midiOutput) midiOutput.send(event.data);
+                            const cmd = event.data[0] & 0xF0; const note = event.data[1]; const vel = event.data[2];
+                            if (cmd === 0x90 && vel > 0) t.activeNotes.push(note);
+                            else if (cmd === 0x80 || (cmd === 0x90 && vel === 0)) t.activeNotes = t.activeNotes.filter(n => n !== note);
+                        }
+                    });
+                    t.lastPlayTime = now;
+                }
+            });
+            requestAnimationFrame(masterEngine);
+        }
+        requestAnimationFrame(masterEngine); 
+
+        // WEB MIDI
+        if (navigator.requestMIDIAccess) navigator.requestMIDIAccess({ sysex: false }).then(onMIDISuccess, () => document.getElementById('status').innerText = "No MIDI Found");
+
+        function onMIDISuccess(midiAccess) {
+            for (let input of midiAccess.inputs.values()) input.onmidimessage = handleMIDIMessage;
+            for (let output of midiAccess.outputs.values()) midiOutput = output; 
+            if (midiOutput) {
+                const statusEl = document.getElementById('status'); statusEl.innerText = "STUDIO LINK ACTIVE"; statusEl.style.background = "var(--neon-green)"; statusEl.style.color = "#000";
+            }
+        }
+
+        function handleMIDIMessage(message) {
+            let type = message.data[0] & 0xF0; let data1 = message.data[1]; let data2 = message.data[2];
+            
+            // 1-to-1 Routing (V26)
+            if (type >= 0x80 && type <= 0xE0) message.data[0] = type | tracks[activeTrackIndex].channel;
+            if (midiOutput) midiOutput.send(message.data); 
+
+            let t = tracks[activeTrackIndex];
+            const isNoteEvent = (type === 0x80 || type === 0x90); const isNoteOn = (type === 0x90 && data2 > 0);
+
+            if (t.state === "ARMED" && isNoteOn) {
+                t.state = "RECORDING"; t.startTime = performance.now();
+                updateTrackStatusUI(activeTrackIndex); document.getElementById('looper-status').innerText = "RECORDING";
+            }
+            if (t.state === "RECORDING") {
+                const eventTime = performance.now() - t.startTime; t.data.push({ data: new Uint8Array(message.data), time: eventTime });
+                if (isNoteOn) t.lastNoteTime = eventTime; 
+            }
+            if (isNoteEvent) {
+                document.getElementById('midi-note').innerText = data1;
+            } else if (type === 0xC0) {
+                globalCurrentTone = data1 + 1; document.getElementById('current-tone').innerText = globalCurrentTone;
+            }
+        }
+
+        // ==========================================
+        // === V26 AUDIO ENGINE =====================
+        // ==========================================
+        let audioCtx = null; let audioStream = null; let audioRecorder = null; let recordedChunks = []; let activeAudioIndex = 0;
+        let audioTracks = Array.from({length: 4}, (_, i) => ({ id: i, state: "EMPTY", buffer: null, source: null, gainNode: null, pannerNode: null, filterNode: null, params: getDefaultParams() }));
+
+        async function initAudioInput() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            try {
+                audioStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+                document.getElementById('connect-audio-btn').innerText = "✓ AUDIO CONNECTED";
+            } catch(err) { alert("Could not access microphone."); }
+        }
+
+        function selectAudioTrack(index) {
+            activeTrackMode = 'AUDIO'; activeAudioIndex = index;
+            for (let i = 0; i < 4; i++) {
+                let btn = document.getElementById(`btn-aud-${i}`);
+                if (i === index) btn.classList.add('audio-selected'); else btn.classList.remove('audio-selected');
+            }
+            for (let i = 0; i < 16; i++) document.getElementById(`btn-trk-${i}`).classList.remove('selected');
+            
+            document.getElementById('display-active-track').innerText = `AUDIO TRK ${index+1}`; document.getElementById('display-active-track').style.color = "var(--neon-purple)";
+            syncUIToTrack(audioTracks[activeAudioIndex]);
+        }
+
+        function updateAudioUI() {
+            audioTracks.forEach((t, i) => {
+                let btn = document.getElementById(`btn-aud-${i}`);
+                btn.classList.remove('audio-state-RECORDING', 'audio-state-PLAYING', 'audio-state-STOPPED');
+                if (t.state !== "EMPTY") btn.classList.add(`audio-state-${t.state}`);
+            });
+        }
+
+        function toggleAudioRec() {
+            if (!audioStream) return alert("Connect Audio First!");
+            let t = audioTracks[activeAudioIndex];
+            if (t.state === "RECORDING") { audioRecorder.stop(); } 
+            else {
+                if (t.source) { t.source.stop(); t.source.disconnect(); } 
+                recordedChunks = []; audioRecorder = new MediaRecorder(audioStream);
+                audioRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
+                audioRecorder.onstop = async () => {
+                    const blob = new Blob(recordedChunks, { type: 'audio/webm' });
+                    audioCtx.decodeAudioData(await blob.arrayBuffer(), (decodedData) => { t.buffer = decodedData; t.state = "STOPPED"; updateAudioUI(); playAudioTrack(activeAudioIndex); });
+                };
+                audioRecorder.start(); t.state = "RECORDING"; updateAudioUI();
+            }
+        }
+
+        function toggleAudioPlay() {
+            let t = audioTracks[activeAudioIndex];
+            if (t.state === "PLAYING") { if (t.source) t.source.stop(); t.state = "STOPPED"; } 
+            else if (t.state === "STOPPED" && t.buffer) { playAudioTrack(activeAudioIndex); }
+            updateAudioUI();
+        }
+
+        function applyAudioParams(t, ccNumber, val) {
+            if (!audioCtx || !t.gainNode) return; 
+            if (ccNumber === 7 || ccNumber === 11) {
+                let vol = (t.params[7] / 127); let expr = (t.params[11] / 127);
+                t.gainNode.gain.setTargetAtTime(vol * expr, audioCtx.currentTime, 0.05);
+            } 
+            else if (ccNumber === 10) t.pannerNode.pan.setTargetAtTime((val - 64) / 64, audioCtx.currentTime, 0.05);
+            else if (ccNumber === 74) {
+                let freq = (val >= 64) ? 20000 : 20 * Math.pow(1000, val / 64);
+                t.filterNode.frequency.setTargetAtTime(freq, audioCtx.currentTime, 0.05);
+            } 
+            else if (ccNumber === 71) t.filterNode.Q.setTargetAtTime((val / 127) * 20, audioCtx.currentTime, 0.05);
+        }
+
+        function playAudioTrack(index) {
+            let t = audioTracks[index]; if (!t.buffer) return;
+            t.source = audioCtx.createBufferSource(); t.source.buffer = t.buffer; t.source.loop = true; 
+            if (!t.gainNode) {
+                t.filterNode = audioCtx.createBiquadFilter(); t.filterNode.type = 'lowpass';
+                t.pannerNode = audioCtx.createStereoPanner(); t.gainNode = audioCtx.createGain();
+                t.filterNode.connect(t.pannerNode); t.pannerNode.connect(t.gainNode); t.gainNode.connect(audioCtx.destination);
+            }
+            applyAudioParams(t, 7, t.params[7]); applyAudioParams(t, 10, t.params[10]); applyAudioParams(t, 74, t.params[74]); applyAudioParams(t, 71, t.params[71]);
+            t.source.connect(t.filterNode); t.source.start(0); t.state = "PLAYING"; updateAudioUI();
+        }
+
+        function clearAudioTrack() {
+            let t = audioTracks[activeAudioIndex]; if (t.source) { try { t.source.stop(); } catch(e){} }
+            t.buffer = null; t.state = "EMPTY"; updateAudioUI();
+        }
+    </script>
+</body>
+</html>
