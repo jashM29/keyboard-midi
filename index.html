@@ -2,9 +2,14 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <!-- Prevents zooming when tapping buttons on mobile -->
+    <!-- APP TAGS: These force the browser to treat this as a standalone native application -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>JDAW Mobile Studio (V26 Base)</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#0a0a0c">
+    
+    <title>JDAW Mobile App</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
     
     <style>
@@ -17,6 +22,8 @@
         body { 
             background: var(--bg); color: var(--text-main); font-family: 'Inter', sans-serif; 
             display: flex; flex-direction: column; align-items: center; padding: 15px 10px; margin: 0; min-height: 100vh;
+            /* Prevents pull-to-refresh on mobile apps */
+            overscroll-behavior-y: contain; 
         }
 
         #status { 
@@ -125,9 +132,7 @@
             </div>
         </div>
 
-        <!-- RIGHT COLUMN (Moves to Top on Mobile for UI visibility) -->
         <div class="right-column mobile-order-1" style="display: flex; flex-direction: column; gap: 15px;">
-            
             <div class="oled-display">
                 <div class="oled-block">
                     <span class="oled-lbl">SELECTED TRACK</span>
@@ -143,13 +148,22 @@
                 </div>
             </div>
 
-            <!-- MIXER (Swipeable on mobile) -->
             <div class="hardware-module" style="border-top-color: var(--neon-cyan);">
                 <div class="module-title" style="color: var(--neon-cyan);">SWIPE MIXER ➔</div>
                 <div class="mixer-section" id="sliders-container"></div>
             </div>
 
             <div class="tempo-synth-row">
+                <div class="hardware-module" style="border-top-color: var(--neon-amber); min-width: 140px;">
+                    <div class="module-title" style="color: var(--neon-amber);">TEMPO</div>
+                    <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px;">
+                        <span style="color:#fff; font-weight:900; font-size:0.8rem;">BPM</span>
+                        <span id="bpm-val" class="oled-val" style="font-size: 1.2rem; color:var(--neon-amber); text-shadow: none;">100</span>
+                    </div>
+                    <input type="range" class="strip-input" id="bpm-slider" min="60" max="200" value="100" oninput="updateTempo()" style="margin-bottom: 20px;">
+                    <button class="jdaw-btn" id="metro-btn" onclick="toggleMetronome()" style="width:100%; padding: 10px 0;">METRO OFF</button>
+                </div>
+
                 <div class="hardware-module" style="border-top-color: var(--neon-amber); flex-grow: 1;">
                     <div class="module-title">SYNTHESIS ENGINE</div>
                     <div class="touch-strip-grid" id="knobs-container"></div>
@@ -157,24 +171,19 @@
             </div>
         </div>
 
-        <!-- LEFT COLUMN (Stacks Below on Mobile) -->
         <div class="hardware-module mobile-order-2" style="border-top-color: var(--neon-green);">
-            
-            <!-- 1. MIDI LOOPER -->
             <div class="module-title">
                 <span>16-TRACK MIDI LOOPER</span>
                 <span id="looper-status" style="color:var(--neon-amber);">READY</span>
             </div>
             <div class="mpc-grid" id="tracks-container" style="margin-bottom: 25px;"></div>
 
-            <!-- 2. REGISTRATION MEMORY BANK -->
             <div class="module-title" style="color: var(--neon-amber);">
                 <span>16-PAD REG MEMORY</span>
                 <button id="btn-reg-store" class="jdaw-btn" style="padding: 4px 10px;" onclick="toggleStoreMode()">STORE</button>
             </div>
             <div class="mpc-grid" id="reg-container" style="margin-bottom: 25px;"></div>
 
-            <!-- 3. AUDIO RECORDER -->
             <div class="module-title" style="color: var(--neon-purple);">
                 <span>4-TRACK AUDIO RECORDER</span>
             </div>
@@ -196,11 +205,16 @@
 
     </div>
 
-    <!-- JAVASCRIPT: V26 LOGIC (100% Intact) -->
+    <!-- JAVASCRIPT: WITH LOCAL STORAGE APP SAVING -->
     <script>
         let midiOutput = null; 
         let activeTrackMode = 'MIDI'; 
         let globalCurrentTone = "---"; 
+        
+        let audioCtx = null;
+        let isMetroOn = false; 
+        let metroInterval = null; 
+        let metroBeat = 0;
 
         const knobMappings = [
             { id: "K1", name: "Cutoff", cc: 74, default: 64 }, { id: "K2", name: "Reso", cc: 71, default: 64 },
@@ -258,7 +272,39 @@
         }
 
         // ==========================================
-        // === V26 REGISTRATION MEMORY BANK =========
+        // === METRONOME LOGIC ======================
+        // ==========================================
+        function initAudio() { 
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); 
+            if (audioCtx.state === 'suspended') audioCtx.resume(); 
+        }
+
+        function playClick(isDownbeat) {
+            if (!audioCtx) return; 
+            const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination); 
+            osc.type = "square"; osc.frequency.value = isDownbeat ? 1000 : 500;
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime); 
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
+            osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.05);
+        }
+
+        function toggleMetronome() {
+            initAudio(); isMetroOn = !isMetroOn; const btn = document.getElementById('metro-btn');
+            if (isMetroOn) { btn.style.color = "var(--neon-amber)"; btn.innerText = "METRO ON"; metroBeat = 0; startMetronome(); } 
+            else { btn.style.color = "#fff"; btn.innerText = "METRO OFF"; if (metroInterval) clearInterval(metroInterval); }
+        }
+
+        function updateTempo() { document.getElementById('bpm-val').innerText = document.getElementById('bpm-slider').value; if (isMetroOn) startMetronome(); }
+
+        function startMetronome() {
+            if (metroInterval) clearInterval(metroInterval); if (!isMetroOn) return;
+            let stepTime = 60000 / parseFloat(document.getElementById('bpm-slider').value);
+            metroInterval = setInterval(() => { playClick(metroBeat === 0); metroBeat = (metroBeat + 1) % 4; }, stepTime);
+        }
+
+        // ==========================================
+        // === LOCAL STORAGE & REGISTRATIONS ========
         // ==========================================
         let registrations = new Array(16).fill(null);
         let isStoreMode = false;
@@ -268,6 +314,23 @@
             regContainer.innerHTML += `<div class="reg-pad" id="btn-reg-${i}" onclick="handleRegPad(${i})">R${i+1}</div>`;
         }
 
+        // NEW: Load saved tones from hard drive on boot
+        function loadSavedBanks() {
+            const savedData = localStorage.getItem('jdaw_custom_tones');
+            if (savedData) {
+                registrations = JSON.parse(savedData);
+                // Light up the pads that have data
+                registrations.forEach((reg, index) => {
+                    if (reg !== null) {
+                        document.getElementById(`btn-reg-${index}`).classList.add('saved');
+                    }
+                });
+            }
+        }
+        
+        // Boot script
+        window.addEventListener('load', loadSavedBanks);
+
         function toggleStoreMode() {
             isStoreMode = !isStoreMode;
             document.getElementById('btn-reg-store').classList.toggle('active-red', isStoreMode);
@@ -275,11 +338,24 @@
 
         function handleRegPad(index) {
             let pad = document.getElementById(`btn-reg-${index}`);
+            
             if (isStoreMode) {
+                // Save custom tone to memory
                 let t = activeTrackMode === 'MIDI' ? tracks[activeTrackIndex] : audioTracks[activeAudioIndex];
                 registrations[index] = { programNumber: globalCurrentTone, params: { ...t.params } };
-                pad.classList.add('saved'); toggleStoreMode();
+                
+                // NEW: Permanently write to local storage (hard drive)
+                localStorage.setItem('jdaw_custom_tones', JSON.stringify(registrations));
+                
+                pad.classList.add('saved'); 
+                toggleStoreMode();
+                
+                // Show tiny visual feedback
+                let btnStore = document.getElementById('btn-reg-store');
+                btnStore.innerText = "SAVED!"; 
+                setTimeout(() => btnStore.innerText = "STORE", 1000);
             } else {
+                // Load tone from memory
                 let reg = registrations[index]; if (!reg) return; 
                 
                 if (midiOutput && activeTrackMode === 'MIDI' && reg.programNumber !== "---") {
@@ -338,6 +414,7 @@
         }
 
         function toggleLooperRec() {
+            initAudio(); 
             let t = tracks[activeTrackIndex];
             if (t.state === "RECORDING" || t.state === "ARMED") { t.state = (t.data.length > 0) ? "STOPPED" : "EMPTY"; document.getElementById('looper-status').innerText = "STOPPED"; } 
             else { t.state = "ARMED"; t.data = []; t.lastNoteTime = 0; stopTrackNotes(activeTrackIndex); document.getElementById('looper-status').innerText = "ARMED..."; }
@@ -348,9 +425,12 @@
             let t = tracks[activeTrackIndex];
             if (t.state === "PLAYING") { t.state = "STOPPED"; stopTrackNotes(activeTrackIndex); document.getElementById('looper-status').innerText = "STOPPED"; } 
             else if (t.state === "RECORDING") {
-                let bpm = 100; let measureMs = (60000 / bpm) * 4; 
-                let completedMeasures = Math.max(1, Math.ceil(t.lastNoteTime / measureMs)); t.duration = completedMeasures * measureMs;
-                t.data = t.data.filter(e => e.time < t.duration); t.state = "PLAYING"; t.playStartTime = t.startTime; 
+                let bpm = parseFloat(document.getElementById('bpm-slider').value); 
+                let measureMs = (60000 / bpm) * 4; 
+                let completedMeasures = Math.max(1, Math.ceil(t.lastNoteTime / measureMs)); 
+                t.duration = completedMeasures * measureMs;
+                t.data = t.data.filter(e => e.time < t.duration); 
+                t.state = "PLAYING"; t.playStartTime = t.startTime; 
                 let rawDuration = performance.now() - t.startTime; t.lastPlayTime = rawDuration % t.duration; 
                 document.getElementById('looper-status').innerText = "LOOPING";
             } else if (t.state === "STOPPED" && t.data.length > 0) { t.state = "PLAYING"; t.playStartTime = performance.now(); t.lastPlayTime = 0; document.getElementById('looper-status').innerText = "LOOPING"; }
@@ -402,7 +482,6 @@
         function handleMIDIMessage(message) {
             let type = message.data[0] & 0xF0; let data1 = message.data[1]; let data2 = message.data[2];
             
-            // 1-to-1 Routing (V26)
             if (type >= 0x80 && type <= 0xE0) message.data[0] = type | tracks[activeTrackIndex].channel;
             if (midiOutput) midiOutput.send(message.data); 
 
@@ -412,6 +491,13 @@
             if (t.state === "ARMED" && isNoteOn) {
                 t.state = "RECORDING"; t.startTime = performance.now();
                 updateTrackStatusUI(activeTrackIndex); document.getElementById('looper-status').innerText = "RECORDING";
+                
+                if (!isMetroOn) {
+                    isMetroOn = true; const btn = document.getElementById('metro-btn');
+                    btn.style.color = "var(--neon-amber)"; btn.innerText = "METRO ON";
+                }
+                initAudio();
+                playClick(true); metroBeat = 1; startMetronome();
             }
             if (t.state === "RECORDING") {
                 const eventTime = performance.now() - t.startTime; t.data.push({ data: new Uint8Array(message.data), time: eventTime });
@@ -427,11 +513,11 @@
         // ==========================================
         // === V26 AUDIO ENGINE =====================
         // ==========================================
-        let audioCtx = null; let audioStream = null; let audioRecorder = null; let recordedChunks = []; let activeAudioIndex = 0;
+        let audioStream = null; let audioRecorder = null; let recordedChunks = []; let activeAudioIndex = 0;
         let audioTracks = Array.from({length: 4}, (_, i) => ({ id: i, state: "EMPTY", buffer: null, source: null, gainNode: null, pannerNode: null, filterNode: null, params: getDefaultParams() }));
 
         async function initAudioInput() {
-            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            initAudio(); 
             try {
                 audioStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
                 document.getElementById('connect-audio-btn').innerText = "✓ AUDIO CONNECTED";
