@@ -8,7 +8,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#0a0a0c">
     
-    <title>JDAW Mobile App (V26.7 - Precision Patch)</title>
+    <title>JDAW Mobile App (V26.8 - Seamless Looper)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
     
     <style>
@@ -205,7 +205,7 @@
         let audioCtx = null;
         let isMetroOn = false; 
         let metroBeat = 0;
-        let nextAudioTime = 0; // Hardware Scheduling Clock
+        let nextAudioTime = 0; 
 
         const knobMappings = [
             { id: "K1", name: "Cutoff", cc: 74, default: 64 }, { id: "K2", name: "Reso", cc: 71, default: 64 },
@@ -267,7 +267,6 @@
             if (audioCtx.state === 'suspended') audioCtx.resume(); 
         }
 
-        // PATCH 1: Hardware Scheduled Metronome (No setInterval)
         function playClick(isDownbeat, scheduleTime) {
             if (!audioCtx) return; 
             const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
@@ -286,17 +285,13 @@
             if (isMetroOn) { 
                 btn.style.color = "var(--neon-amber)"; btn.innerText = "METRO ON"; 
                 metroBeat = 0; 
-                nextAudioTime = audioCtx.currentTime + 0.05; // Start immediately
-            } 
-            else { 
+                nextAudioTime = audioCtx.currentTime + 0.05; 
+            } else { 
                 btn.style.color = "#fff"; btn.innerText = "METRO OFF"; 
             }
         }
 
-        function updateTempo() { 
-            document.getElementById('bpm-val').innerText = document.getElementById('bpm-slider').value; 
-        }
-
+        function updateTempo() { document.getElementById('bpm-val').innerText = document.getElementById('bpm-slider').value; }
 
         // ==========================================
         // === LOCAL STORAGE & REGISTRATIONS ========
@@ -357,41 +352,49 @@
         }
 
         // ==========================================
-        // === 16-TRACK LOOPER ENGINE (MIDI) ========
+        // === V26.8 SEAMLESS LOOPER ENGINE =========
         // ==========================================
         let tracks = []; let activeTrackIndex = 0; const tracksContainer = document.getElementById('tracks-container');
         for (let i = 0; i < 16; i++) {
-            tracks.push({ id: i, channel: i, state: "EMPTY", data: [], duration: 0, startTime: 0, lastPlayTime: 0, activeNotes: [], params: getDefaultParams() });
+            tracks.push({ id: i, channel: i, state: "EMPTY", data: [], duration: 0, startTime: 0, playStartTime: 0, lastPlayTime: 0, activeNotes: [], params: getDefaultParams() });
             let label = (i === 9) ? "DRUM" : `M${i+1}`;
             tracksContainer.innerHTML += `<div class="mpc-pad ${i===0 ? 'selected' : ''}" id="btn-trk-${i}" onclick="selectTrack(${i})">${label}</div>`;
         }
 
         function finalizeLoop(t) {
-            let bpm = parseFloat(document.getElementById('bpm-slider').value); 
-            let measureMs = (60000 / bpm) * 4; 
             let durationMs = performance.now() - t.startTime;
             
-            let completedMeasures = Math.max(1, Math.round(durationMs / measureMs)); 
-            t.duration = completedMeasures * measureMs;
+            if (isMetroOn) {
+                // Synced Looping
+                let bpm = parseFloat(document.getElementById('bpm-slider').value); 
+                let measureMs = (60000 / bpm) * 4; 
+                let completedMeasures = Math.max(1, Math.round(durationMs / measureMs)); 
+                t.duration = completedMeasures * measureMs;
+            } else {
+                // RESTORED: Free Looping
+                t.duration = durationMs; 
+            }
 
             let cleanData = [];
             let activeKeys = {};
             
             t.data.forEach(ev => {
-                if (ev.time < t.duration) {
-                    cleanData.push(ev);
-                    let cmd = ev.data[0] & 0xF0; let note = ev.data[1]; let vel = ev.data[2];
-                    if (cmd === 0x90 && vel > 0) activeKeys[note] = true;
-                    else if (cmd === 0x80 || (cmd === 0x90 && vel === 0)) delete activeKeys[note];
-                }
+                // V26.8 PATCH: Loop Foldback. Late downbeats magically fold around to time 0.
+                let wrappedTime = ev.time % t.duration;
+                cleanData.push({ data: ev.data, time: wrappedTime });
+                
+                let cmd = ev.data[0] & 0xF0; let note = ev.data[1]; let vel = ev.data[2];
+                if (cmd === 0x90 && vel > 0) activeKeys[note] = true;
+                else if (cmd === 0x80 || (cmd === 0x90 && vel === 0)) delete activeKeys[note];
             });
             
+            // Prevent hanging notes for keys held past the boundary
             for (let note in activeKeys) {
                 cleanData.push({ data: new Uint8Array([0x80 | t.channel, parseInt(note), 0]), time: t.duration - 1 });
             }
             
             t.data = cleanData.sort((a,b) => a.time - b.time);
-            t.activeNotes = []; // reset polyphony tracking
+            t.activeNotes = []; 
         }
 
         function selectTrack(index) {
@@ -435,11 +438,22 @@
             initAudio(); 
             let t = tracks[activeTrackIndex];
             
-            if (t.state === "RECORDING" || t.state === "ARMED") { 
-                if (t.state === "RECORDING" && t.data.length > 0) finalizeLoop(t);
-                t.state = (t.data.length > 0) ? "STOPPED" : "EMPTY"; 
-                document.getElementById('looper-status').innerText = "STOPPED"; 
+            if (t.state === "RECORDING") { 
+                if (t.data.length > 0) {
+                    finalizeLoop(t);
+                    t.state = "PLAYING"; 
+                    // V26.8: Seamless Transition (Do not reset clock)
+                    t.playStartTime = t.startTime; 
+                    t.lastPlayTime = (performance.now() - t.startTime) % t.duration;
+                    document.getElementById('looper-status').innerText = "LOOPING";
+                } else {
+                    t.state = "EMPTY"; 
+                    document.getElementById('looper-status').innerText = "READY";
+                }
             } 
+            else if (t.state === "ARMED") {
+                t.state = "EMPTY"; document.getElementById('looper-status').innerText = "READY";
+            }
             else { 
                 t.state = "ARMED"; t.data = []; t.lastPlayTime = 0; stopTrackNotes(activeTrackIndex); 
                 document.getElementById('looper-status').innerText = isMetroOn ? "WAITING FOR SYNC..." : "ARMED..."; 
@@ -454,11 +468,16 @@
             } 
             else if (t.state === "RECORDING") {
                 finalizeLoop(t);
-                t.state = "PLAYING"; t.playStartTime = performance.now(); t.lastPlayTime = 0; 
+                t.state = "PLAYING"; 
+                // V26.8: Seamless Transition (Do not reset clock)
+                t.playStartTime = t.startTime; 
+                t.lastPlayTime = (performance.now() - t.startTime) % t.duration; 
                 document.getElementById('looper-status').innerText = "LOOPING";
             } 
             else if (t.state === "STOPPED" && t.data.length > 0) { 
-                t.state = "PLAYING"; t.playStartTime = performance.now(); t.lastPlayTime = 0; 
+                t.state = "PLAYING"; 
+                t.playStartTime = performance.now(); // Free Play Start
+                t.lastPlayTime = 0; 
                 document.getElementById('looper-status').innerText = "LOOPING"; 
             }
             else if (t.state === "ARMED") {
@@ -482,22 +501,17 @@
             t.activeNotes.forEach(note => { midiOutput.send([0x80 | t.channel, note, 0]); }); t.activeNotes = [];
         }
 
-        // ==========================================
-        // === PRO LOGIC 2: THE NEW MASTER CLOCK ====
-        // ==========================================
         function masterEngine() {
             let nowGlobal = performance.now();
             
-            // 1. HARDWARE SCHEDULED METRONOME
+            // METRONOME HARDWARE SCHEDULING
             if (isMetroOn && audioCtx) {
                 let bpm = parseFloat(document.getElementById('bpm-slider').value);
                 let secPerBeat = 60.0 / bpm;
                 
-                // If the next beat is coming up within 100ms, push it to the hardware chip!
                 if (nextAudioTime < audioCtx.currentTime + 0.1) {
                     playClick(metroBeat === 0, nextAudioTime);
                     
-                    // Master Sync Grid: If it's a Downbeat, start Armed tracks precisely.
                     if (metroBeat === 0) {
                         let offsetMs = (nextAudioTime - audioCtx.currentTime) * 1000;
                         let exactMidiStartTime = nowGlobal + offsetMs;
@@ -517,43 +531,33 @@
                 }
             }
             
-            // 2. MIDI ENGINE (NO LOOKAHEAD - FIXES CLUSTERING BUG)
+            // LOOP PLAYBACK
             tracks.forEach(t => {
                 if (t.state === "PLAYING") {
                     let currentPos = (nowGlobal - t.playStartTime) % t.duration;
                     
-                    // DID WE JUST WRAP AROUND?
                     if (currentPos < t.lastPlayTime) {
-                        
-                        // A. Play remaining notes up to the very end of the boundary
                         t.data.forEach(ev => {
                             if (ev.time >= t.lastPlayTime && ev.time < t.duration) {
                                 if (midiOutput) midiOutput.send(ev.data);
                             }
                         });
                         
-                        // B. FORCED POLYPHONY PURGE
-                        // Instantly kill any active notes at the boundary before restarting!
                         t.activeNotes.forEach(note => { if(midiOutput) midiOutput.send([0x80 | t.channel, note, 0]); });
                         t.activeNotes = [];
                         
-                        // C. Play notes from the very beginning of the loop
                         t.data.forEach(ev => {
                             if (ev.time >= 0 && ev.time <= currentPos) {
                                 if (midiOutput) midiOutput.send(ev.data);
-                                // Track newly triggered notes
                                 let cmd = ev.data[0] & 0xF0; let note = ev.data[1]; let vel = ev.data[2];
                                 if (cmd === 0x90 && vel > 0) t.activeNotes.push(note);
                             }
                         });
                         
                     } else {
-                        // NORMAL PLAYBACK (Mid-loop)
                         t.data.forEach(ev => {
                             if (ev.time > t.lastPlayTime && ev.time <= currentPos) {
                                 if (midiOutput) midiOutput.send(ev.data);
-                                
-                                // Track active notes so they can be purged later
                                 let cmd = ev.data[0] & 0xF0; let note = ev.data[1]; let vel = ev.data[2];
                                 if (cmd === 0x90 && vel > 0) t.activeNotes.push(note);
                                 else if (cmd === 0x80 || (cmd === 0x90 && vel === 0)) {
@@ -598,13 +602,12 @@
                 t.state = "RECORDING"; t.startTime = performance.now();
                 updateTrackStatusUI(activeTrackIndex); document.getElementById('looper-status').innerText = "RECORDING";
                 
-                // If Metro is OFF, turn it on instantly with the first finger press
                 if (!isMetroOn) {
                     initAudio();
                     isMetroOn = true; 
                     const btn = document.getElementById('metro-btn');
                     btn.style.color = "var(--neon-amber)"; btn.innerText = "METRO ON";
-                    metroBeat = 1; // First downbeat is happening RIGHT NOW
+                    metroBeat = 1; 
                     nextAudioTime = audioCtx.currentTime + (60.0 / parseFloat(document.getElementById('bpm-slider').value));
                     playClick(true, audioCtx.currentTime); 
                 }
