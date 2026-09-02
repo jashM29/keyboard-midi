@@ -6,16 +6,16 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="mobile-web-app-capable" content="yes">
-    <meta name="theme-color" content="#0d0e12">
+    <meta name="theme-color" content="#121318">
     
-    <title>JDAW V27 (Pro Engine)</title>
+    <title>JDAW Mobile (V28 Pro Looper)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
     
     <style>
         :root {
-            --bg: #0d0e12; --chassis: #15161b; --panel: #1b1c23; 
-            --border: #282a36; --screen: #0a0b0d; 
-            --fl-orange: #ff6a00; --fl-green: #00e676; --fl-blue: #00bfff; --fl-red: #ff3366;
+            --bg: #0b0c10; --chassis: #16171d; --panel: #1e1f29; 
+            --border: #2a2c3a; --screen: #0d0f12; 
+            --daw-orange: #ff7300; --daw-green: #00fa9a; --daw-blue: #00d2ff; --daw-red: #ff3366;
             --text-main: #f8fafc; --text-muted: #64748b;
         }
 
@@ -29,12 +29,12 @@
             width: 100%; max-width: 1200px; box-sizing: border-box; text-align: center; padding: 8px; 
             background: #8b0000; color: white; border-radius: 4px; margin-bottom: 10px; 
             font-weight: 900; font-size: 0.7rem; letter-spacing: 2px; text-transform: uppercase;
-            box-shadow: 0 0 10px rgba(139, 0, 0, 0.5); z-index: 100;
+            box-shadow: 0 0 10px rgba(139, 0, 0, 0.5); z-index: 100; transition: 0.3s;
         }
 
         .daw-chassis {
-            background: var(--chassis); border: 1px solid #222; border-top: 1px solid #333;
-            border-radius: 12px; padding: 15px; box-shadow: 0 20px 40px rgba(0,0,0,0.8);
+            background: var(--chassis); border: 1px solid #111; border-top: 1px solid #2a2c3a;
+            border-radius: 12px; padding: 15px; box-shadow: 0 20px 50px rgba(0,0,0,0.9);
             width: 100%; max-width: 1200px; box-sizing: border-box; display: grid; gap: 15px;
         }
 
@@ -45,7 +45,7 @@
 
         /* DIGITAL TRANSPORT CONSOLE */
         .master-console {
-            background: var(--screen); border: 2px solid #000; border-radius: 8px; padding: 15px;
+            background: var(--screen); border: 2px solid #050608; border-radius: 8px; padding: 15px;
             display: flex; flex-direction: column; gap: 15px; box-shadow: inset 0 0 20px rgba(0,0,0,0.9);
         }
         @media (min-width: 600px) { .master-console { flex-direction: row; justify-content: space-between; align-items: center; } }
@@ -53,55 +53,55 @@
         .oled-group { display: flex; gap: 20px; justify-content: space-between; width: 100%; }
         .oled-block { display: flex; flex-direction: column; font-family: 'Share Tech Mono', monospace; }
         .oled-lbl { color: #516b80; font-size: 0.6rem; font-family: 'Inter', sans-serif; font-weight: 900; letter-spacing: 1px; margin-bottom: 2px;}
-        .oled-val { color: var(--fl-blue); font-size: 1.5rem; text-shadow: 0 0 8px rgba(0,191,255,0.5); }
-        .oled-val.orange { color: var(--fl-orange); text-shadow: 0 0 8px rgba(255,106,0,0.5); }
+        .oled-val { color: var(--daw-blue); font-size: 1.6rem; text-shadow: 0 0 8px rgba(0,210,255,0.4); }
+        .oled-val.orange { color: var(--daw-orange); text-shadow: 0 0 8px rgba(255,115,0,0.4); }
 
         .transport-controls { display: flex; gap: 10px; width: 100%; justify-content: center; }
         .t-btn {
-            background: linear-gradient(180deg, #2a2c36, #1b1c23); border: 1px solid #000; border-top: 1px solid #444; 
-            color: #fff; border-radius: 6px; flex-grow: 1; height: 45px; font-size: 1.2rem; cursor: pointer; 
+            background: linear-gradient(180deg, #2a2c3a, #1e1f29); border: 1px solid #000; border-top: 1px solid #444; 
+            color: #fff; border-radius: 6px; flex-grow: 1; height: 50px; font-size: 1.4rem; cursor: pointer; 
             box-shadow: 0 4px 6px rgba(0,0,0,0.6); touch-action: manipulation;
         }
         .t-btn:active { transform: translateY(2px); box-shadow: 0 1px 2px rgba(0,0,0,0.8); }
-        .t-btn.rec.active { background: #3a000d; border-color: var(--fl-red); color: var(--fl-red); box-shadow: 0 0 15px rgba(255,51,102,0.4); }
-        .t-btn.play.active { background: #002b16; border-color: var(--fl-green); color: var(--fl-green); box-shadow: 0 0 15px rgba(0,230,118,0.4); }
+        .t-btn.rec.active { background: #3a000d; border-color: var(--daw-red); color: var(--daw-red); box-shadow: 0 0 15px rgba(255,51,102,0.4); }
+        .t-btn.play.active { background: #002b16; border-color: var(--daw-green); color: var(--daw-green); box-shadow: 0 0 15px rgba(0,250,154,0.3); }
 
         /* MODULE BLOCKS */
-        .module { background: var(--panel); border: 1px solid #000; border-top: 1px solid #2a2c36; border-radius: 8px; padding: 15px; box-shadow: inset 0 2px 10px rgba(0,0,0,0.5); }
-        .m-title { display: flex; justify-content: space-between; align-items: center; font-size: 0.65rem; color: #828a9f; letter-spacing: 1px; font-weight: 900; border-bottom: 1px solid #282a36; padding-bottom: 6px; margin-bottom: 12px; }
+        .module { background: var(--panel); border: 1px solid #000; border-top: 1px solid #2a2c3a; border-radius: 8px; padding: 15px; box-shadow: inset 0 2px 10px rgba(0,0,0,0.5); }
+        .m-title { display: flex; justify-content: space-between; align-items: center; font-size: 0.65rem; color: #828a9f; letter-spacing: 1px; font-weight: 900; border-bottom: 1px solid #2a2c3a; padding-bottom: 6px; margin-bottom: 12px; }
 
         /* MPC PADS */
         .pad-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
         .pad {
-            background: linear-gradient(135deg, #282a36, #1b1c23); border: 1px solid #111; border-top: 1px solid #3a3d4a; 
-            border-radius: 4px; height: 50px; display: flex; justify-content: center; align-items: center; 
-            cursor: pointer; box-shadow: 0 3px 5px rgba(0,0,0,0.5); font-weight: 900; color: var(--text-muted); 
-            font-size: 0.7rem; touch-action: manipulation;
+            background: linear-gradient(135deg, #2a2c3a, #1e1f29); border: 1px solid #050608; border-top: 1px solid #3a3d4a; 
+            border-radius: 6px; height: 55px; display: flex; justify-content: center; align-items: center; 
+            cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.5); font-weight: 900; color: var(--text-muted); 
+            font-size: 0.75rem; touch-action: manipulation; transition: 0.1s;
         }
-        .pad:active { transform: translateY(2px); box-shadow: 0 1px 2px rgba(0,0,0,0.8); }
+        .pad:active { transform: translateY(3px); box-shadow: 0 1px 2px rgba(0,0,0,0.8); }
         
-        .pad.selected { border-color: var(--fl-blue); color: #fff; box-shadow: 0 0 10px rgba(0,191,255,0.3); }
-        .pad.s-ARMED { border-color: var(--fl-red); background: #2a0008; color: var(--fl-red); }
-        .pad.s-RECORDING { background: var(--fl-red); color: #fff; box-shadow: 0 0 15px rgba(255,51,102,0.6); border-color: #ffb3c6;}
-        .pad.s-OVERDUB { background: var(--fl-orange); color: #000; box-shadow: 0 0 15px rgba(255,106,0,0.6); border-color: #ffe6cc;}
-        .pad.s-PLAYING { background: var(--fl-green); color: #000; box-shadow: 0 0 15px rgba(0,230,118,0.5); border-color: #ccffcc;}
-        .pad.s-STOPPED { color: var(--fl-green); border-color: var(--fl-green); }
+        .pad.selected { border-color: var(--daw-blue); color: #fff; box-shadow: 0 0 12px rgba(0,210,255,0.3); }
+        .pad.s-ARMED { border-color: var(--daw-red); background: #2a0008; color: var(--daw-red); }
+        .pad.s-RECORDING { background: var(--daw-red); color: #fff; box-shadow: 0 0 15px rgba(255,51,102,0.6); border-color: #ffb3c6;}
+        .pad.s-OVERDUB { background: var(--daw-orange); color: #000; box-shadow: 0 0 15px rgba(255,115,0,0.6); border-color: #ffe6cc;}
+        .pad.s-PLAYING { background: var(--daw-green); color: #000; box-shadow: 0 0 15px rgba(0,250,154,0.4); border-color: #ccffcc;}
+        .pad.s-STOPPED { color: var(--daw-green); border-color: var(--daw-green); }
 
-        .pad-reg.saved { border-color: #664400; color: var(--fl-orange); background: #2a1a00; }
+        .pad-reg.saved { border-color: #664400; color: var(--daw-orange); background: #2a1a00; }
 
-        .btn-small { background: #222; color: #fff; border: 1px solid #111; border-top: 1px solid #444; border-radius: 4px; padding: 5px 10px; font-size: 0.6rem; font-weight: 900; cursor: pointer; }
-        .btn-small.active { background: var(--fl-red); color: #fff; border-color: #ffb3c6; box-shadow: 0 0 10px rgba(255,51,102,0.5);}
+        .btn-small { background: #1a1c25; color: #fff; border: 1px solid #050608; border-top: 1px solid #3a3d4a; border-radius: 4px; padding: 6px 12px; font-size: 0.65rem; font-weight: 900; cursor: pointer; }
+        .btn-small.active { background: var(--daw-red); color: #fff; border-color: #ffb3c6; box-shadow: 0 0 10px rgba(255,51,102,0.5);}
 
         /* MIXER & SYNTH */
-        .strip-input { -webkit-appearance: none; width: 100%; height: 6px; background: #000; border-radius: 3px; border: 1px solid #111; outline: none; touch-action: none; }
-        .strip-input::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 20px; background: #ddd; border: 2px solid var(--fl-orange); border-radius: 2px; box-shadow: 0 0 8px rgba(255,106,0,0.6); margin-top: -7px;}
+        .strip-input { -webkit-appearance: none; width: 100%; height: 8px; background: #050608; border-radius: 4px; border: 1px solid #111; outline: none; touch-action: none; box-shadow: inset 0 1px 3px rgba(0,0,0,1); }
+        .strip-input::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 24px; background: #e2e8f0; border: 2px solid var(--daw-orange); border-radius: 3px; box-shadow: 0 0 8px rgba(255,115,0,0.6); margin-top: -8px;}
 
-        .mixer-scroll { display: flex; gap: 15px; overflow-x: auto; padding: 10px 5px 15px 5px; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; }
-        .fader-wrap { display: flex; flex-direction: column; align-items: center; width: 40px; flex-shrink: 0; scroll-snap-align: start; }
-        .fader-bg { position: relative; width: 30px; height: 130px; display: flex; justify-content: center; align-items: center; background: #08080a; border-radius: 3px; box-shadow: inset 0 0 8px #000; border: 1px solid #1a1a1a;}
-        .fader-input { -webkit-appearance: none; width: 120px; height: 2px; background: transparent; transform: rotate(-90deg); position: absolute; z-index: 2; touch-action: none; }
-        .fader-input::-webkit-slider-thumb { -webkit-appearance: none; width: 28px; height: 40px; background: linear-gradient(to right, #1a1a1a, #333, #1a1a1a); border: 1px solid #000; border-top: 1px solid #555; border-radius: 2px; box-shadow: 0 5px 10px rgba(0,0,0,0.8); background-image: linear-gradient(to bottom, transparent 46%, var(--fl-blue) 46%, var(--fl-blue) 54%, transparent 54%); }
-        .fader-val { margin-top: 8px; font-size: 0.65rem; color: var(--fl-blue); font-family: monospace; background: #000; padding: 2px 4px; border-radius: 2px; border: 1px solid #222;}
+        .mixer-scroll { display: flex; gap: 20px; overflow-x: auto; padding: 10px 5px 15px 5px; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; }
+        .fader-wrap { display: flex; flex-direction: column; align-items: center; width: 45px; flex-shrink: 0; scroll-snap-align: start; }
+        .fader-bg { position: relative; width: 35px; height: 140px; display: flex; justify-content: center; align-items: center; background: #050608; border-radius: 4px; box-shadow: inset 0 0 10px #000; border: 1px solid #1a1c25;}
+        .fader-input { -webkit-appearance: none; width: 130px; height: 2px; background: transparent; transform: rotate(-90deg); position: absolute; z-index: 2; touch-action: none; }
+        .fader-input::-webkit-slider-thumb { -webkit-appearance: none; width: 30px; height: 45px; background: linear-gradient(to right, #1a1c25, #3a3d4a, #1a1c25); border: 1px solid #000; border-top: 1px solid #555; border-radius: 3px; box-shadow: 0 6px 12px rgba(0,0,0,0.8); background-image: linear-gradient(to bottom, transparent 46%, var(--daw-blue) 46%, var(--daw-blue) 54%, transparent 54%); }
+        .fader-val { margin-top: 10px; font-size: 0.7rem; color: var(--daw-blue); font-family: monospace; background: #050608; padding: 3px 6px; border-radius: 3px; border: 1px solid #1a1c25;}
     </style>
 </head>
 <body>
@@ -114,16 +114,16 @@
         <div class="master-console full-width">
             <div class="oled-group">
                 <div class="oled-block">
-                    <span class="oled-lbl">MASTER CLOCK</span>
-                    <span class="oled-val orange" id="master-time">0.00s</span>
-                </div>
-                <div class="oled-block">
-                    <span class="oled-lbl">CASIO TONE</span>
-                    <span class="oled-val" id="current-tone">---</span>
+                    <span class="oled-lbl">BEAT SYNC</span>
+                    <span class="oled-val orange" id="master-time">1:1</span>
                 </div>
                 <div class="oled-block">
                     <span class="oled-lbl">EDIT TARGET</span>
                     <span class="oled-val" id="display-active-track" style="color:#fff;">TRK 1</span>
+                </div>
+                <div class="oled-block" style="text-align: right;">
+                    <span class="oled-lbl">CASIO TONE</span>
+                    <span class="oled-val" id="current-tone">---</span>
                 </div>
             </div>
             <div class="transport-controls">
@@ -135,17 +135,17 @@
 
         <!-- LEFT COL: LOOPER & REG -->
         <div style="display: flex; flex-direction: column; gap: 15px;">
-            <div class="module" style="border-top-color: var(--fl-green);">
+            <div class="module" style="border-top-color: var(--daw-green);">
                 <div class="m-title">
-                    <span style="color:var(--fl-green);">16-TRACK MASTER SEQUENCER</span>
+                    <span style="color:var(--daw-green);">16-TRACK AUTO-MEASURE LOOPER</span>
                     <span id="looper-status" style="color:#fff;">READY</span>
                 </div>
                 <div class="pad-grid" id="tracks-container"></div>
             </div>
 
-            <div class="module" style="border-top-color: var(--fl-orange);">
+            <div class="module" style="border-top-color: var(--daw-orange);">
                 <div class="m-title">
-                    <span style="color:var(--fl-orange);">REGISTRATION SNAPSHOTS</span>
+                    <span style="color:var(--daw-orange);">REGISTRATION SNAPSHOTS</span>
                     <button id="btn-reg-store" class="btn-small" onclick="toggleStoreMode()">STORE</button>
                 </div>
                 <div class="pad-grid" id="reg-container"></div>
@@ -154,22 +154,22 @@
 
         <!-- RIGHT COL: MIXER & SYNTH -->
         <div style="display: flex; flex-direction: column; gap: 15px;">
-            <div class="module" style="border-top-color: var(--fl-blue);">
-                <div class="m-title"><span style="color:var(--fl-blue);">CONSOLE MIXER ➔</span></div>
+            <div class="module" style="border-top-color: var(--daw-blue);">
+                <div class="m-title"><span style="color:var(--daw-blue);">CONSOLE MIXER ➔</span></div>
                 <div class="mixer-scroll" id="sliders-container"></div>
             </div>
 
-            <div style="display: grid; grid-template-columns: 100px 1fr; gap: 15px;">
-                <div class="module" style="border-top-color: #fff; padding: 10px;">
+            <div style="display: grid; grid-template-columns: 110px 1fr; gap: 15px;">
+                <div class="module" style="border-top-color: #fff; padding: 12px;">
                     <div class="m-title">TEMPO</div>
-                    <span id="bpm-val" class="oled-val orange" style="font-size:1.1rem; display:block; margin-bottom:5px;">100</span>
-                    <input type="range" class="strip-input" id="bpm-slider" min="60" max="200" value="100" oninput="updateTempo()" style="margin-bottom: 15px;">
+                    <span id="bpm-val" class="oled-val orange" style="font-size:1.3rem; display:block; margin-bottom:8px;">100</span>
+                    <input type="range" class="strip-input" id="bpm-slider" min="60" max="200" value="100" oninput="updateTempo()" style="margin-bottom: 20px;">
                     <button class="btn-small" id="metro-btn" onclick="toggleMetronome()" style="width:100%;">METRO OFF</button>
                 </div>
 
                 <div class="module" style="border-top-color: #fff;">
                     <div class="m-title">SYNTHESIS ENGINE</div>
-                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;" id="knobs-container"></div>
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;" id="knobs-container"></div>
                 </div>
             </div>
         </div>
@@ -178,28 +178,20 @@
 
     <script>
         // ==========================================
-        // === V27 GLOBAL DAW ARCHITECTURE ==========
+        // === V28 PURE MATHEMATICAL CLOCK ==========
         // ==========================================
         let midiOutput = null; 
         let activeTrackIndex = 0; 
         let globalCurrentTone = "---"; 
         
-        // AUDIO & MASTER CLOCK
         let audioCtx = null;
         let isMetroOn = false; 
-        let metroBeat = 0;
-        let nextAudioTime = 0; 
+        let nextClickMasterTime = 0; 
         
-        // THE MASTER TRANSPORT VARIABLES
+        // The one true clock. Everything snaps to this grid.
         let globalTransportStart = null; 
         let isTransportRunning = false;
 
-        function getGlobalTime() {
-            if (!audioCtx) return 0;
-            return audioCtx.currentTime * 1000; // Return strict hardware milliseconds
-        }
-
-        // PARAMETER MAPS
         const knobMappings = [
             { id: "K1", name: "Cutoff", cc: 74, default: 64 }, { id: "K2", name: "Reso", cc: 71, default: 64 },
             { id: "K3", name: "Attack", cc: 73, default: 64 }, { id: "K4", name: "Decay", cc: 75, default: 64 },
@@ -220,12 +212,12 @@
             return p;
         }
 
-        // UI SETUP
+        // UI RENDERING
         const knobsContainer = document.getElementById('knobs-container');
         knobMappings.forEach(k => {
             knobsContainer.innerHTML += `
-                <div style="display:flex; flex-direction:column; gap:4px;">
-                    <div style="display:flex; justify-content:space-between; font-size:0.6rem; color:#888; font-weight:900;"><span>${k.name}</span> <span id="display-${k.id}" style="color:var(--fl-orange);">${k.default}</span></div>
+                <div style="display:flex; flex-direction:column; gap:6px;">
+                    <div style="display:flex; justify-content:space-between; font-size:0.6rem; color:#888; font-weight:900;"><span>${k.name}</span> <span id="display-${k.id}" style="color:var(--daw-orange);">${k.default}</span></div>
                     <input type="range" class="strip-input" id="${k.id}" min="0" max="127" value="${k.default}" oninput="handleControlMove('${k.id}', ${k.cc}, this.value)">
                 </div>`;
         });
@@ -234,7 +226,7 @@
         sliderMappings.forEach(s => {
             slidersContainer.innerHTML += `
                 <div class="fader-wrap">
-                    <span style="font-size:0.55rem; color:#888; font-weight:900; margin-bottom:8px;">${s.name}</span>
+                    <span style="font-size:0.6rem; color:#888; font-weight:900; margin-bottom:8px;">${s.name}</span>
                     <div class="fader-bg"><input type="range" class="fader-input" id="${s.id}" min="0" max="127" value="${s.default}" oninput="handleControlMove('${s.id}', ${s.cc}, this.value)"></div>
                     <span id="display-${s.id}" class="fader-val">${s.default}</span>
                 </div>`;
@@ -272,9 +264,17 @@
             const btn = document.getElementById('metro-btn');
             
             if (isMetroOn) { 
-                btn.style.color = "var(--fl-orange)"; btn.innerText = "METRO ON"; 
-                metroBeat = 0; 
-                nextAudioTime = audioCtx.currentTime + 0.05; 
+                btn.style.color = "var(--daw-orange)"; btn.innerText = "METRO ON"; 
+                // If transport isn't running, starting the metro sets the global grid immediately
+                if (!isTransportRunning) {
+                    globalTransportStart = performance.now();
+                    isTransportRunning = true;
+                }
+                // Calculate next beat time
+                let bpm = parseFloat(document.getElementById('bpm-slider').value);
+                let beatMs = 60000 / bpm;
+                let masterTime = performance.now() - globalTransportStart;
+                nextClickMasterTime = Math.ceil(masterTime / beatMs) * beatMs;
             } else { 
                 btn.style.color = "#fff"; btn.innerText = "METRO OFF"; 
             }
@@ -321,13 +321,13 @@
         }
 
         // ==========================================
-        // === V27 MASTER SEQUENCER ENGINE ==========
+        // === V28 INDEPENDENT AUTO-MEASURE ENGINE ==
         // ==========================================
         let tracks = []; const tracksContainer = document.getElementById('tracks-container');
         for (let i = 0; i < 16; i++) {
-            // Added overdubBuffer array
-            tracks.push({ id: i, channel: i, state: "EMPTY", data: [], overdubBuffer: [], duration: 0, recordStartTime: 0, activeNotes: [], params: getDefaultParams() });
-            let label = (i === 9) ? "DRUM" : `T${i+1}`;
+            // rawBuffer collects absolute master times. data stores phase modulo times.
+            tracks.push({ id: i, channel: i, state: "EMPTY", data: [], rawBuffer: [], recordActiveNotes: new Set(), duration: 0, activeNotes: [], params: getDefaultParams(), lastPlayTime: 0 });
+            let label = (i === 9) ? "DRUMS" : `TRK ${i+1}`;
             tracksContainer.innerHTML += `<div class="pad ${i===0 ? 'selected' : ''}" id="btn-trk-${i}" onclick="selectTrack(${i})">${label}</div>`;
         }
 
@@ -363,52 +363,37 @@
             if (t.state === "PLAYING") btnPlay.classList.add('active');
         }
 
-        function ensureTransportRunning() {
-            if (!isTransportRunning) {
-                globalTransportStart = getGlobalTime();
-                isTransportRunning = true;
-            }
-        }
-
         function finalizeLoop(t) {
-            // Only set duration if this is the FIRST recording pass
-            if (t.duration === 0) {
-                let durationMs = getGlobalTime() - t.recordStartTime;
-                if (isMetroOn) {
-                    let bpm = parseFloat(document.getElementById('bpm-slider').value); 
-                    let measureMs = (60000 / bpm) * 4; 
-                    let completedMeasures = Math.max(1, Math.round(durationMs / measureMs)); 
-                    t.duration = completedMeasures * measureMs;
-                } else {
-                    t.duration = durationMs; 
-                }
+            let masterTime = performance.now() - globalTransportStart;
+            
+            // V28 AUTO-MEASURE LOGIC
+            if (t.duration === 0) { // Calculate duration only on first record pass
+                // Measure how long they actually played from the very first note
+                let firstNoteTime = t.rawBuffer.length > 0 ? t.rawBuffer[0].absoluteTime : masterTime;
+                let rawDur = masterTime - firstNoteTime;
+                
+                let bpm = parseFloat(document.getElementById('bpm-slider').value); 
+                let measureMs = (60000 / bpm) * 4; 
+                
+                // Magic snapping: Round what they played to nearest exact measure length
+                t.duration = Math.max(1, Math.round(rawDur / measureMs)) * measureMs;
             }
 
-            // V27 OVERDUB MERGE: Move buffer to main array
-            t.data = t.data.concat(t.overdubBuffer);
-            t.overdubBuffer = [];
+            // Close any hanging notes exactly at the boundary before modulo mapping
+            t.recordActiveNotes.forEach(note => {
+                t.rawBuffer.push({ data: new Uint8Array([0x80 | t.channel, parseInt(note), 0]), absoluteTime: masterTime });
+            });
+            t.recordActiveNotes.clear();
 
-            let cleanData = [];
-            let activeKeys = {};
-            
-            t.data.forEach(ev => {
-                let wrappedTime = ev.time % t.duration;
-                cleanData.push({ data: ev.data, time: wrappedTime });
-                let cmd = ev.data[0] & 0xF0; let note = ev.data[1]; let vel = ev.data[2];
-                if (cmd === 0x90 && vel > 0) activeKeys[note] = true;
-                else if (cmd === 0x80 || (cmd === 0x90 && vel === 0)) delete activeKeys[note];
+            // PHASE-LOCK MODULO: Maps absolute time into repeating loop phase
+            t.rawBuffer.forEach(ev => {
+                t.data.push({ data: ev.data, time: ev.absoluteTime % t.duration });
             });
             
-            // V27 MUSICAL BLEED MATH
-            let bpm = parseFloat(document.getElementById('bpm-slider').value); 
-            let bleedMs = (60000 / bpm) / 4; // Exactly one 16th note bleed
-            
-            for (let note in activeKeys) {
-                cleanData.push({ data: new Uint8Array([0x80 | t.channel, parseInt(note), 0]), time: bleedMs });
-            }
-            
-            t.data = cleanData.sort((a,b) => a.time - b.time);
+            t.rawBuffer = [];
+            t.data.sort((a,b) => a.time - b.time);
             t.activeNotes = []; 
+            t.lastPlayTime = masterTime % t.duration; 
         }
 
         function toggleLooperRec() {
@@ -416,22 +401,26 @@
             let t = tracks[activeTrackIndex];
             
             if (t.state === "RECORDING" || t.state === "OVERDUB") { 
-                if (t.data.length > 0 || t.overdubBuffer.length > 0) finalizeLoop(t);
-                t.state = "PLAYING"; document.getElementById('looper-status').innerText = "LOOPING"; 
+                if (t.rawBuffer.length > 0 || t.data.length > 0) {
+                    finalizeLoop(t);
+                    t.state = "PLAYING"; document.getElementById('looper-status').innerText = "LOOPING"; 
+                } else {
+                    t.state = "EMPTY"; document.getElementById('looper-status').innerText = "READY"; 
+                }
             } 
             else if (t.state === "PLAYING") {
                 t.state = "OVERDUB"; document.getElementById('looper-status').innerText = "OVERDUBBING"; 
             }
             else if (t.state === "STOPPED" && t.data.length > 0) { 
-                ensureTransportRunning();
+                if (!isTransportRunning) { globalTransportStart = performance.now(); isTransportRunning = true; }
                 t.state = "OVERDUB"; document.getElementById('looper-status').innerText = "OVERDUBBING"; 
             }
             else if (t.state === "ARMED") {
                 t.state = "EMPTY"; document.getElementById('looper-status').innerText = "READY";
             }
             else { 
-                t.state = "ARMED"; t.data = []; t.overdubBuffer = []; t.duration = 0; stopTrackNotes(t); 
-                document.getElementById('looper-status').innerText = isMetroOn ? "WAITING FOR BEAT 1..." : "ARMED..."; 
+                t.state = "ARMED"; t.data = []; t.rawBuffer = []; t.duration = 0; stopTrackNotes(t); 
+                document.getElementById('looper-status').innerText = "ARMED (PLAY TO START)"; 
             }
             updateTrackStatusUI(activeTrackIndex);
         }
@@ -442,20 +431,20 @@
                 t.state = "STOPPED"; stopTrackNotes(t); document.getElementById('looper-status').innerText = "STOPPED"; 
             } 
             else if (t.state === "RECORDING" || t.state === "OVERDUB") {
-                if (t.data.length > 0 || t.overdubBuffer.length > 0) finalizeLoop(t);
+                if (t.rawBuffer.length > 0 || t.data.length > 0) finalizeLoop(t);
                 t.state = "PLAYING"; document.getElementById('looper-status').innerText = "LOOPING";
             } 
             else if (t.state === "STOPPED" && t.data.length > 0) { 
-                ensureTransportRunning(); // MASTER SYNC HAPPENS HERE
+                if (!isTransportRunning) { globalTransportStart = performance.now(); isTransportRunning = true; }
                 t.state = "PLAYING"; document.getElementById('looper-status').innerText = "LOOPING"; 
             }
             else if (t.state === "ARMED") {
                 t.state = "EMPTY"; document.getElementById('looper-status').innerText = "READY";
             }
             
-            // If all tracks are stopped, pause the master transport
+            // If all stopped, pause master clock
             let anyRunning = tracks.some(trk => trk.state === "PLAYING" || trk.state === "RECORDING" || trk.state === "OVERDUB");
-            if (!anyRunning) { isTransportRunning = false; document.getElementById('master-time').innerText = "0.00s"; }
+            if (!anyRunning) { isTransportRunning = false; document.getElementById('master-time').innerText = "1:1"; }
             
             updateTrackStatusUI(activeTrackIndex);
         }
@@ -463,84 +452,76 @@
         function stopAllTracks() {
             tracks.forEach((t, i) => { 
                 if (t.state === "PLAYING" || t.state === "RECORDING" || t.state === "OVERDUB" || t.state === "ARMED") { 
-                    if ((t.state === "RECORDING" || t.state === "OVERDUB") && (t.data.length > 0 || t.overdubBuffer.length > 0)) finalizeLoop(t);
+                    if ((t.state === "RECORDING" || t.state === "OVERDUB") && (t.data.length > 0 || t.rawBuffer.length > 0)) finalizeLoop(t);
                     t.state = (t.data.length > 0) ? "STOPPED" : "EMPTY"; stopTrackNotes(t); updateTrackStatusUI(i); 
                 }
             });
             isTransportRunning = false;
             document.getElementById('looper-status').innerText = "ALL STOPPED";
-            document.getElementById('master-time').innerText = "0.00s";
+            document.getElementById('master-time').innerText = "1:1";
+            if (isMetroOn) toggleMetronome(); // Kill metro on full stop
         }
 
         function stopTrackNotes(t) {
             if (!midiOutput) return;
             t.activeNotes.forEach(note => { midiOutput.send([0x80 | t.channel, note, 0]); }); t.activeNotes = [];
+            t.recordActiveNotes.forEach(note => { midiOutput.send([0x80 | t.channel, note, 0]); }); t.recordActiveNotes.clear();
         }
 
         // ==========================================
-        // === V27 GLOBAL PLAYHEAD CLOCK ============
+        // === V28 BULLETPROOF MASTER ENGINE ========
         // ==========================================
-        let lastFrameTime = 0;
-
         function masterEngine() {
-            let nowGlobal = getGlobalTime();
-            
-            if (isMetroOn && audioCtx) {
-                let bpm = parseFloat(document.getElementById('bpm-slider').value);
-                let secPerBeat = 60.0 / bpm;
-                if (nextAudioTime < audioCtx.currentTime + 0.1) {
-                    playClick(metroBeat === 0, nextAudioTime);
-                    
-                    if (metroBeat === 0) {
-                        let offsetMs = (nextAudioTime - audioCtx.currentTime) * 1000;
-                        let exactMidiStartTime = nowGlobal + offsetMs;
-                        
-                        tracks.forEach(t => {
-                            if (t.state === "ARMED") {
-                                if(!isTransportRunning) { globalTransportStart = exactMidiStartTime; isTransportRunning = true; }
-                                t.state = "RECORDING";
-                                t.recordStartTime = exactMidiStartTime; 
-                                t.data = []; t.overdubBuffer = [];
-                                updateTrackStatusUI(t.id);
-                                document.getElementById('looper-status').innerText = "REC (SYNCED)";
-                            }
-                        });
-                    }
-                    nextAudioTime += secPerBeat;
-                    metroBeat = (metroBeat + 1) % 4;
-                }
-            }
+            let nowGlobal = performance.now();
             
             if (isTransportRunning) {
-                let masterRunningTime = nowGlobal - globalTransportStart;
-                document.getElementById('master-time').innerText = (masterRunningTime / 1000).toFixed(2) + "s";
+                let masterTime = nowGlobal - globalTransportStart;
                 
+                // UPDATE VISUAL BARS:BEATS DISPLAY
+                let bpm = parseFloat(document.getElementById('bpm-slider').value);
+                let beatMs = 60000 / bpm;
+                let totalBeats = Math.floor(masterTime / beatMs);
+                let bar = Math.floor(totalBeats / 4) + 1;
+                let beat = (totalBeats % 4) + 1;
+                document.getElementById('master-time').innerText = `${bar}:${beat}`;
+                
+                // METRONOME (Audio Chip Sync)
+                if (isMetroOn && audioCtx) {
+                    if (nextClickMasterTime < masterTime + 100) { // Look ahead 100ms
+                        let deltaMs = nextClickMasterTime - masterTime;
+                        let scheduleTime = audioCtx.currentTime + (deltaMs / 1000);
+                        if (scheduleTime < audioCtx.currentTime) scheduleTime = audioCtx.currentTime;
+                        
+                        let isDownbeat = (Math.round(nextClickMasterTime / beatMs) % 4 === 0);
+                        playClick(isDownbeat, scheduleTime);
+                        nextClickMasterTime += beatMs;
+                    }
+                }
+                
+                // MIDI LOOP PLAYBACK
                 tracks.forEach(t => {
                     if (t.state === "PLAYING" || t.state === "OVERDUB") {
-                        if (t.duration === 0) return; // safety
+                        if (t.duration === 0) return; 
                         
-                        // V27: EVERY track derives its position from the MASTER clock!
-                        let currentPos = masterRunningTime % t.duration;
-                        let lastPos = lastFrameTime % t.duration;
+                        let currentPos = masterTime % t.duration;
+                        let lastPos = t.lastPlayTime;
                         
-                        // Time went backwards relative to the loop length = Wrap Around!
+                        // WRAPPED BOUNDARY! (Modulo reset)
                         if (currentPos < lastPos) { 
-                            t.data.forEach(ev => { if (ev.time >= lastPos && ev.time < t.duration && midiOutput) midiOutput.send(ev.data); trackPolyphony(t, ev); });
+                            // 1. Play remaining notes to end
+                            t.data.forEach(ev => { if (ev.time > lastPos && ev.time < t.duration && midiOutput) midiOutput.send(ev.data); trackPolyphony(t, ev); });
                             
-                            // MERGE OVERDUB BUFFER SILENTLY ON BOUNDARY
-                            if (t.state === "OVERDUB" && t.overdubBuffer.length > 0) {
-                                t.data = t.data.concat(t.overdubBuffer); t.overdubBuffer = [];
-                                t.data.sort((a,b) => a.time - b.time);
-                            }
+                            // (NO GUILLOTINE PURGE! Notes gracefully bleed over boundary)
 
+                            // 2. Play new notes from 0
                             t.data.forEach(ev => { if (ev.time >= 0 && ev.time <= currentPos && midiOutput) midiOutput.send(ev.data); trackPolyphony(t, ev); });
                         } else { 
                             // NORMAL PLAYBACK
                             t.data.forEach(ev => { if (ev.time > lastPos && ev.time <= currentPos && midiOutput) midiOutput.send(ev.data); trackPolyphony(t, ev); });
                         }
+                        t.lastPlayTime = currentPos;
                     }
                 });
-                lastFrameTime = masterRunningTime;
             }
             requestAnimationFrame(masterEngine); 
         }
@@ -555,13 +536,15 @@
         // ==========================================
         // === MIDI EVENT ROUTER ====================
         // ==========================================
-        if (navigator.requestMIDIAccess) navigator.requestMIDIAccess({ sysex: false }).then(onMIDISuccess, () => document.getElementById('status-bar').innerText = "NO MIDI FOUND");
+        if (navigator.requestMIDIAccess) navigator.requestMIDIAccess({ sysex: false }).then(onMIDISuccess, () => {
+            let el = document.getElementById('status-bar'); el.innerText = "NO MIDI FOUND"; el.style.background = "var(--daw-red)";
+        });
 
         function onMIDISuccess(midiAccess) {
             for (let input of midiAccess.inputs.values()) input.onmidimessage = handleMIDIMessage;
             for (let output of midiAccess.outputs.values()) midiOutput = output; 
             if (midiOutput) {
-                let el = document.getElementById('status-bar'); el.innerText = "STUDIO LINK ACTIVE"; el.style.background = "var(--fl-green)"; el.style.color = "#000"; el.style.boxShadow = "0 0 15px var(--fl-green)";
+                let el = document.getElementById('status-bar'); el.innerText = "STUDIO LINK ACTIVE"; el.style.background = "var(--daw-green)"; el.style.color = "#000"; el.style.boxShadow = "0 0 15px var(--daw-green)";
             }
         }
 
@@ -572,31 +555,23 @@
             let outData = Array.from(message.data);
             if (type >= 0x80 && type <= 0xE0) { outData[0] = type | t.channel; if (midiOutput) midiOutput.send(outData); }
 
-            const isNoteEvent = (type === 0x80 || type === 0x90); const isNoteOn = (type === 0x90 && data2 > 0);
+            const isNoteEvent = (type === 0x80 || type === 0x90); const isNoteOn = (type === 0x90 && data2 > 0); const isNoteOff = (type === 0x80 || (type === 0x90 && data2 === 0));
 
-            if (t.state === "ARMED" && isNoteOn && !isMetroOn) {
-                ensureTransportRunning();
-                t.state = "RECORDING"; t.recordStartTime = getGlobalTime();
+            // V28 INDEPENDENT TRIGGER: Starts global grid instantly on first keypress
+            if (t.state === "ARMED" && isNoteOn) {
+                if (!isTransportRunning) { globalTransportStart = performance.now(); isTransportRunning = true; }
+                t.state = "RECORDING"; 
                 updateTrackStatusUI(activeTrackIndex); document.getElementById('looper-status').innerText = "RECORDING";
-                
-                if (!isMetroOn) {
-                    initAudio(); isMetroOn = true; 
-                    const btn = document.getElementById('metro-btn'); btn.style.color = "var(--fl-orange)"; btn.innerText = "METRO ON";
-                    metroBeat = 1; nextAudioTime = audioCtx.currentTime + (60.0 / parseFloat(document.getElementById('bpm-slider').value));
-                    playClick(true, audioCtx.currentTime); 
-                }
             }
             
-            // V27: WRITE TO THE CORRECT MEMORY BANK
+            // RECORDING & OVERDUBBING
             if (type >= 0x80 && type <= 0xE0) { 
-                if (t.state === "RECORDING") {
-                    const eventTime = getGlobalTime() - t.recordStartTime; 
-                    t.data.push({ data: new Uint8Array(outData), time: eventTime });
-                }
-                else if (t.state === "OVERDUB") {
-                    const masterRunningTime = getGlobalTime() - globalTransportStart;
-                    const currentPos = masterRunningTime % t.duration;
-                    t.overdubBuffer.push({ data: new Uint8Array(outData), time: currentPos });
+                if (t.state === "RECORDING" || t.state === "OVERDUB") {
+                    let masterTime = performance.now() - globalTransportStart;
+                    t.rawBuffer.push({ data: new Uint8Array(outData), absoluteTime: masterTime });
+                    
+                    if (isNoteOn) t.recordActiveNotes.add(data1);
+                    if (isNoteOff) t.recordActiveNotes.delete(data1);
                 }
             }
             
