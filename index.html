@@ -8,7 +8,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#0a0a0c">
     
-    <title>JDAW Mobile App (V26.5)</title>
+    <title>JDAW Mobile App (V26.6 - Pro Looper Engine)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
     
     <style>
@@ -277,6 +277,9 @@
             osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.05);
         }
 
+        // ==========================================
+        // === PRO LOGIC 1: MASTER CLOCK SYNC =======
+        // ==========================================
         function toggleMetronome() {
             initAudio(); isMetroOn = !isMetroOn; const btn = document.getElementById('metro-btn');
             if (isMetroOn) { btn.style.color = "var(--neon-amber)"; btn.innerText = "METRO ON"; metroBeat = 0; startMetronome(); } 
@@ -288,7 +291,24 @@
         function startMetronome() {
             if (metroInterval) clearInterval(metroInterval); if (!isMetroOn) return;
             let stepTime = 60000 / parseFloat(document.getElementById('bpm-slider').value);
-            metroInterval = setInterval(() => { playClick(metroBeat === 0); metroBeat = (metroBeat + 1) % 4; }, stepTime);
+            
+            metroInterval = setInterval(() => { 
+                playClick(metroBeat === 0); 
+                
+                // If the Metronome hits a Downbeat, forcefully start any ARMED tracks.
+                if (metroBeat === 0) {
+                    tracks.forEach(t => {
+                        if (t.state === "ARMED") {
+                            t.state = "RECORDING";
+                            t.startTime = performance.now();
+                            t.data = []; 
+                            updateTrackStatusUI(t.id);
+                            document.getElementById('looper-status').innerText = "REC (SYNCED)";
+                        }
+                    });
+                }
+                metroBeat = (metroBeat + 1) % 4; 
+            }, stepTime);
         }
 
         // ==========================================
@@ -350,13 +370,43 @@
         }
 
         // ==========================================
-        // === 16-TRACK LOOPER ENGINE (MIDI) ========
+        // === PRO LOGIC 2: TRUNCATION FIX ==========
         // ==========================================
         let tracks = []; let activeTrackIndex = 0; const tracksContainer = document.getElementById('tracks-container');
         for (let i = 0; i < 16; i++) {
-            tracks.push({ id: i, channel: i, state: "EMPTY", data: [], duration: 0, startTime: 0, lastNoteTime: 0, playStartTime: 0, lastPlayTime: 0, activeNotes: [], params: getDefaultParams() });
+            tracks.push({ id: i, channel: i, state: "EMPTY", data: [], duration: 0, startTime: 0, lastPlayTime: 0, params: getDefaultParams() });
             let label = (i === 9) ? "DRUM" : `M${i+1}`;
             tracksContainer.innerHTML += `<div class="mpc-pad ${i===0 ? 'selected' : ''}" id="btn-trk-${i}" onclick="selectTrack(${i})">${label}</div>`;
+        }
+
+        function finalizeLoop(t) {
+            let bpm = parseFloat(document.getElementById('bpm-slider').value); 
+            let measureMs = (60000 / bpm) * 4; 
+            let durationMs = performance.now() - t.startTime;
+            
+            // Snap to the closest full measure mathematically
+            let completedMeasures = Math.max(1, Math.round(durationMs / measureMs)); 
+            t.duration = completedMeasures * measureMs;
+
+            let activeNotes = {};
+            let cleanData = [];
+            
+            // Filter out late data and track hanging keys
+            t.data.forEach(ev => {
+                if (ev.time < t.duration) {
+                    cleanData.push(ev);
+                    let cmd = ev.data[0] & 0xF0; let note = ev.data[1]; let vel = ev.data[2];
+                    if (cmd === 0x90 && vel > 0) activeNotes[note] = true;
+                    else if (cmd === 0x80 || (cmd === 0x90 && vel === 0)) delete activeNotes[note];
+                }
+            });
+            
+            // INJECT SYNTHETIC NOTE OFFS 1ms BEFORE LOOP RESETS
+            for (let note in activeNotes) {
+                cleanData.push({ data: new Uint8Array([0x80 | t.channel, parseInt(note), 0]), time: t.duration - 1 });
+            }
+            
+            t.data = cleanData.sort((a,b) => a.time - b.time);
         }
 
         function selectTrack(index) {
@@ -374,7 +424,6 @@
             document.getElementById('current-tone').innerText = t.params.program !== undefined ? t.params.program : "---";
             syncUIToTrack(t); updateActionButtonsUI();
             
-            // NEW BUGFIX: Force Casio to switch to this track's saved Tone and CCs immediately!
             if (midiOutput && t.params.program !== "---") {
                 midiOutput.send([0xC0 | t.channel, parseInt(t.params.program) - 1]);
                 for (let cc in t.params) {
@@ -400,13 +449,15 @@
         function toggleLooperRec() {
             initAudio(); 
             let t = tracks[activeTrackIndex];
+            
             if (t.state === "RECORDING" || t.state === "ARMED") { 
-                if (isMetroOn) toggleMetronome(); // Kill Metro
-                t.state = (t.data.length > 0) ? "STOPPED" : "EMPTY"; document.getElementById('looper-status').innerText = "STOPPED"; 
+                if (t.state === "RECORDING" && t.data.length > 0) finalizeLoop(t);
+                t.state = (t.data.length > 0) ? "STOPPED" : "EMPTY"; 
+                document.getElementById('looper-status').innerText = "STOPPED"; 
             } 
             else { 
-                t.state = "ARMED"; t.data = []; t.lastNoteTime = 0; stopTrackNotes(activeTrackIndex); 
-                document.getElementById('looper-status').innerText = "ARMED..."; 
+                t.state = "ARMED"; t.data = []; t.lastPlayTime = 0;
+                document.getElementById('looper-status').innerText = isMetroOn ? "WAITING FOR SYNC..." : "ARMED..."; 
             }
             updateTrackStatusUI(activeTrackIndex);
         }
@@ -414,77 +465,78 @@
         function toggleLooperPlay() {
             let t = tracks[activeTrackIndex];
             if (t.state === "PLAYING") { 
-                t.state = "STOPPED"; stopTrackNotes(activeTrackIndex); document.getElementById('looper-status').innerText = "STOPPED"; 
+                t.state = "STOPPED"; document.getElementById('looper-status').innerText = "STOPPED"; 
             } 
             else if (t.state === "RECORDING") {
-                if (isMetroOn) toggleMetronome(); // Kill Metro
-                let bpm = parseFloat(document.getElementById('bpm-slider').value); 
-                let measureMs = (60000 / bpm) * 4; 
-                let completedMeasures = Math.max(1, Math.ceil(t.lastNoteTime / measureMs)); 
-                t.duration = completedMeasures * measureMs;
-                t.data = t.data.filter(e => e.time < t.duration); 
-                t.state = "PLAYING"; t.playStartTime = t.startTime; 
-                let rawDuration = performance.now() - t.startTime; t.lastPlayTime = rawDuration % t.duration; 
+                finalizeLoop(t);
+                t.state = "PLAYING"; t.playStartTime = performance.now(); t.lastPlayTime = 0; 
                 document.getElementById('looper-status').innerText = "LOOPING";
             } 
             else if (t.state === "STOPPED" && t.data.length > 0) { 
-                t.state = "PLAYING"; t.playStartTime = performance.now(); t.lastPlayTime = 0; document.getElementById('looper-status').innerText = "LOOPING"; 
+                t.state = "PLAYING"; t.playStartTime = performance.now(); t.lastPlayTime = 0; 
+                document.getElementById('looper-status').innerText = "LOOPING"; 
             }
             else if (t.state === "ARMED") {
-                if (isMetroOn) toggleMetronome();
                 t.state = "EMPTY"; document.getElementById('looper-status').innerText = "READY";
             }
             updateTrackStatusUI(activeTrackIndex);
         }
 
         function stopAllTracks() {
-            tracks.forEach((t, i) => { if (t.state === "PLAYING" || t.state === "RECORDING" || t.state === "ARMED") { t.state = (t.data.length > 0) ? "STOPPED" : "EMPTY"; stopTrackNotes(i); updateTrackStatusUI(i); }});
+            tracks.forEach((t, i) => { 
+                if (t.state === "PLAYING" || t.state === "RECORDING" || t.state === "ARMED") { 
+                    if (t.state === "RECORDING" && t.data.length > 0) finalizeLoop(t);
+                    t.state = (t.data.length > 0) ? "STOPPED" : "EMPTY"; updateTrackStatusUI(i); 
+                }
+            });
             document.getElementById('looper-status').innerText = "ALL STOPPED";
         }
 
-        function stopTrackNotes(index) {
-            if (!midiOutput) return; let t = tracks[index];
-            t.activeNotes.forEach(note => { midiOutput.send([0x80 | t.channel, note, 0]); }); t.activeNotes = [];
-        }
-
+        // ==========================================
+        // === PRO LOGIC 3: HARDWARE LOOKAHEAD ======
+        // ==========================================
         function masterEngine() {
             let nowGlobal = performance.now();
+            
             tracks.forEach(t => {
                 if (t.state === "PLAYING") {
-                    let now = (nowGlobal - t.playStartTime) % t.duration;
+                    let currentPos = (nowGlobal - t.playStartTime) % t.duration;
+                    let lookaheadPos = currentPos + 100; // Look 100ms into the future!
                     
-                    // NEW BUGFIX: The Wrap-Around Catchup
-                    // If the loop wraps to 0, fire off any last remaining milliseconds of the loop so notes don't hang!
-                    if (now < t.lastPlayTime) {
-                        t.data.forEach(event => {
-                            if (event.time >= t.lastPlayTime && event.time < t.duration) {
-                                if (midiOutput) midiOutput.send(event.data);
+                    if (lookaheadPos >= t.duration) {
+                        // Loop Wrap Around (Send notes at the end of loop, and beginning of next loop)
+                        let wrappedPos = lookaheadPos % t.duration;
+                        
+                        t.data.forEach(ev => {
+                            if (ev.time >= t.lastPlayTime && ev.time < t.duration) {
+                                if (midiOutput) midiOutput.send(ev.data, nowGlobal + (ev.time - currentPos));
+                            }
+                            if (ev.time >= 0 && ev.time < wrappedPos) {
+                                let wrapOffset = t.duration - currentPos;
+                                if (midiOutput) midiOutput.send(ev.data, nowGlobal + wrapOffset + ev.time);
                             }
                         });
-                        // Purge all hanging polyphony instantly at the loop boundary
-                        t.activeNotes.forEach(note => { if(midiOutput) midiOutput.send([0x80 | t.channel, note, 0]); });
-                        t.activeNotes = [];
-                        t.lastPlayTime = 0; 
+                        t.lastPlayTime = wrappedPos;
+                    } else {
+                        // Normal playback window
+                        if (t.lastPlayTime > lookaheadPos) t.lastPlayTime = 0; // Safeguard
+                        
+                        t.data.forEach(ev => {
+                            if (ev.time >= t.lastPlayTime && ev.time < lookaheadPos) {
+                                // Hardware Timestamping API: The browser tells the Casio EXACTLY when to play it
+                                if (midiOutput) midiOutput.send(ev.data, nowGlobal + (ev.time - currentPos));
+                            }
+                        });
+                        t.lastPlayTime = lookaheadPos;
                     }
-                    
-                    t.data.forEach(event => {
-                        if (event.time >= t.lastPlayTime && event.time < now) {
-                            if (midiOutput) midiOutput.send(event.data);
-                            // Keep track of active notes so we can kill them if they hang
-                            const cmd = event.data[0] & 0xF0; const note = event.data[1]; const vel = event.data[2];
-                            if (cmd === 0x90 && vel > 0) t.activeNotes.push(note);
-                            else if (cmd === 0x80 || (cmd === 0x90 && vel === 0)) t.activeNotes = t.activeNotes.filter(n => n !== note);
-                        }
-                    });
-                    t.lastPlayTime = now;
                 }
             });
-            requestAnimationFrame(masterEngine);
+            requestAnimationFrame(masterEngine); // Browser lag no longer affects the Casio!
         }
         requestAnimationFrame(masterEngine); 
 
         // ==========================================
-        // === V26.5 DATA FILTER PATCH ==============
+        // === MIDI ROUTING =========================
         // ==========================================
         if (navigator.requestMIDIAccess) navigator.requestMIDIAccess({ sysex: false }).then(onMIDISuccess, () => document.getElementById('status').innerText = "No MIDI Found");
 
@@ -508,25 +560,16 @@
 
             const isNoteEvent = (type === 0x80 || type === 0x90); const isNoteOn = (type === 0x90 && data2 > 0);
 
-            if (t.state === "ARMED" && isNoteOn) {
+            if (t.state === "ARMED" && isNoteOn && !isMetroOn) {
+                // Only auto-start on finger press if Metronome is OFF
                 t.state = "RECORDING"; t.startTime = performance.now();
                 updateTrackStatusUI(activeTrackIndex); document.getElementById('looper-status').innerText = "RECORDING";
-                
-                if (!isMetroOn) {
-                    isMetroOn = true; const btn = document.getElementById('metro-btn');
-                    btn.style.color = "var(--neon-amber)"; btn.innerText = "METRO ON";
-                }
-                initAudio();
-                playClick(true); metroBeat = 1; startMetronome();
             }
             
             if (t.state === "RECORDING") {
-                // NEW BUGFIX: The Active Sensing Garbage Filter
-                // Prevents 0xF8 (Clock) and 0xFE (Active Sensing) from permanently filling up the Looper arrays
-                if (type >= 0x80 && type <= 0xE0) { 
+                if (type >= 0x80 && type <= 0xE0) { // Active Sensing Garbage Filter
                     const eventTime = performance.now() - t.startTime; 
                     t.data.push({ data: new Uint8Array(outData), time: eventTime });
-                    if (isNoteOn) t.lastNoteTime = eventTime; 
                 }
             }
             
@@ -535,7 +578,7 @@
             } 
             else if (type === 0xC0) { 
                 globalCurrentTone = data1 + 1; document.getElementById('current-tone').innerText = globalCurrentTone;
-                t.params.program = globalCurrentTone; // Save it to the track instantly
+                t.params.program = globalCurrentTone; 
                 
                 setTimeout(() => {
                     if (midiOutput) {
