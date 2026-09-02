@@ -8,7 +8,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#121318">
     
-    <title>JDAW Mobile (V28 Pro Looper)</title>
+    <title>JDAW Mobile (V29 Flawless Engine)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
     
     <style>
@@ -137,7 +137,7 @@
         <div style="display: flex; flex-direction: column; gap: 15px;">
             <div class="module" style="border-top-color: var(--daw-green);">
                 <div class="m-title">
-                    <span style="color:var(--daw-green);">16-TRACK AUTO-MEASURE LOOPER</span>
+                    <span style="color:var(--daw-green);">16-TRACK PRO LOOPER</span>
                     <span id="looper-status" style="color:#fff;">READY</span>
                 </div>
                 <div class="pad-grid" id="tracks-container"></div>
@@ -162,8 +162,8 @@
             <div style="display: grid; grid-template-columns: 110px 1fr; gap: 15px;">
                 <div class="module" style="border-top-color: #fff; padding: 12px;">
                     <div class="m-title">TEMPO</div>
-                    <span id="bpm-val" class="oled-val orange" style="font-size:1.3rem; display:block; margin-bottom:8px;">100</span>
-                    <input type="range" class="strip-input" id="bpm-slider" min="60" max="200" value="100" oninput="updateTempo()" style="margin-bottom: 20px;">
+                    <span id="bpm-val" class="oled-val orange" style="font-size:1.3rem; display:block; margin-bottom:8px;">100.0</span>
+                    <input type="range" class="strip-input" id="bpm-slider" min="60" max="200" value="100" step="0.1" oninput="updateTempo()" style="margin-bottom: 20px;">
                     <button class="btn-small" id="metro-btn" onclick="toggleMetronome()" style="width:100%;">METRO OFF</button>
                 </div>
 
@@ -178,7 +178,7 @@
 
     <script>
         // ==========================================
-        // === V28 PURE MATHEMATICAL CLOCK ==========
+        // === V29 FLAWLESS MATHEMATICAL CLOCK ======
         // ==========================================
         let midiOutput = null; 
         let activeTrackIndex = 0; 
@@ -188,9 +188,9 @@
         let isMetroOn = false; 
         let nextClickMasterTime = 0; 
         
-        // The one true clock. Everything snaps to this grid.
         let globalTransportStart = null; 
         let isTransportRunning = false;
+        let lastFrameTimeGlobal = 0; // The Lag Shield Tracker
 
         const knobMappings = [
             { id: "K1", name: "Cutoff", cc: 74, default: 64 }, { id: "K2", name: "Reso", cc: 71, default: 64 },
@@ -265,12 +265,10 @@
             
             if (isMetroOn) { 
                 btn.style.color = "var(--daw-orange)"; btn.innerText = "METRO ON"; 
-                // If transport isn't running, starting the metro sets the global grid immediately
                 if (!isTransportRunning) {
                     globalTransportStart = performance.now();
                     isTransportRunning = true;
                 }
-                // Calculate next beat time
                 let bpm = parseFloat(document.getElementById('bpm-slider').value);
                 let beatMs = 60000 / bpm;
                 let masterTime = performance.now() - globalTransportStart;
@@ -280,7 +278,9 @@
             }
         }
 
-        function updateTempo() { document.getElementById('bpm-val').innerText = document.getElementById('bpm-slider').value; }
+        function updateTempo() { 
+            document.getElementById('bpm-val').innerText = parseFloat(document.getElementById('bpm-slider').value).toFixed(1); 
+        }
 
         // LOCAL STORAGE
         let registrations = new Array(16).fill(null);
@@ -321,12 +321,11 @@
         }
 
         // ==========================================
-        // === V28 INDEPENDENT AUTO-MEASURE ENGINE ==
+        // === V29 TRACK ARCHITECTURE ===============
         // ==========================================
         let tracks = []; const tracksContainer = document.getElementById('tracks-container');
         for (let i = 0; i < 16; i++) {
-            // rawBuffer collects absolute master times. data stores phase modulo times.
-            tracks.push({ id: i, channel: i, state: "EMPTY", data: [], rawBuffer: [], recordActiveNotes: new Set(), duration: 0, activeNotes: [], params: getDefaultParams(), lastPlayTime: 0 });
+            tracks.push({ id: i, channel: i, state: "EMPTY", data: [], rawBuffer: [], recordActiveNotes: new Set(), duration: 0, activeNotes: [], params: getDefaultParams(), lastPlayTime: 0, recordStartTime: 0 });
             let label = (i === 9) ? "DRUMS" : `TRK ${i+1}`;
             tracksContainer.innerHTML += `<div class="pad ${i===0 ? 'selected' : ''}" id="btn-trk-${i}" onclick="selectTrack(${i})">${label}</div>`;
         }
@@ -363,35 +362,63 @@
             if (t.state === "PLAYING") btnPlay.classList.add('active');
         }
 
+        function flushOverdubBuffer(t) {
+            if (t.rawBuffer.length === 0) return;
+
+            // Merge buffer into track data
+            t.rawBuffer.forEach(ev => {
+                t.data.push({ data: ev.data, time: ev.absoluteTime % t.duration });
+            });
+            t.rawBuffer = [];
+            t.data.sort((a,b) => a.time - b.time);
+
+            // V29: 5-Millisecond Deduplication algorithm (Kills the cluster glitch forever)
+            let uniqueData = [];
+            for(let i = 0; i < t.data.length; i++) {
+                if (i > 0 && 
+                    Math.abs(t.data[i].time - t.data[i-1].time) < 5 && 
+                    t.data[i].data[0] === t.data[i-1].data[0] &&
+                    t.data[i].data[1] === t.data[i-1].data[1]) {
+                    continue; // Skip exact duplicate note sent within 5ms
+                }
+                uniqueData.push(t.data[i]);
+            }
+            t.data = uniqueData;
+        }
+
         function finalizeLoop(t) {
             let masterTime = performance.now() - globalTransportStart;
             
-            // V28 AUTO-MEASURE LOGIC
-            if (t.duration === 0) { // Calculate duration only on first record pass
-                // Measure how long they actually played from the very first note
-                let firstNoteTime = t.rawBuffer.length > 0 ? t.rawBuffer[0].absoluteTime : masterTime;
-                let rawDur = masterTime - firstNoteTime;
+            // V29 INDEPENDENT BPM AUTO-DETECT
+            if (t.duration === 0) { 
+                let rawDur = masterTime - t.recordStartTime; 
                 
-                let bpm = parseFloat(document.getElementById('bpm-slider').value); 
-                let measureMs = (60000 / bpm) * 4; 
-                
-                // Magic snapping: Round what they played to nearest exact measure length
-                t.duration = Math.max(1, Math.round(rawDur / measureMs)) * measureMs;
+                if (isMetroOn) {
+                    // Lock perfectly to Metronome Grid
+                    let bpm = parseFloat(document.getElementById('bpm-slider').value); 
+                    let measureMs = (60000 / bpm) * 4; 
+                    t.duration = Math.max(1, Math.round(rawDur / measureMs)) * measureMs;
+                } else {
+                    // Truly independent duration based exactly on what was played!
+                    t.duration = rawDur;
+                    
+                    // Auto-Detect the BPM 
+                    let calcBpm = (60000 / (t.duration / 4));
+                    while (calcBpm < 60) calcBpm *= 2;
+                    while (calcBpm > 180) calcBpm /= 2;
+                    
+                    document.getElementById('bpm-slider').value = calcBpm;
+                    document.getElementById('bpm-val').innerText = calcBpm.toFixed(1);
+                }
             }
 
-            // Close any hanging notes exactly at the boundary before modulo mapping
+            // Close any keys held at the exact moment of Stop
             t.recordActiveNotes.forEach(note => {
                 t.rawBuffer.push({ data: new Uint8Array([0x80 | t.channel, parseInt(note), 0]), absoluteTime: masterTime });
             });
             t.recordActiveNotes.clear();
 
-            // PHASE-LOCK MODULO: Maps absolute time into repeating loop phase
-            t.rawBuffer.forEach(ev => {
-                t.data.push({ data: ev.data, time: ev.absoluteTime % t.duration });
-            });
-            
-            t.rawBuffer = [];
-            t.data.sort((a,b) => a.time - b.time);
+            flushOverdubBuffer(t);
             t.activeNotes = []; 
             t.lastPlayTime = masterTime % t.duration; 
         }
@@ -442,7 +469,7 @@
                 t.state = "EMPTY"; document.getElementById('looper-status').innerText = "READY";
             }
             
-            // If all stopped, pause master clock
+            // Auto pause master clock if silence
             let anyRunning = tracks.some(trk => trk.state === "PLAYING" || trk.state === "RECORDING" || trk.state === "OVERDUB");
             if (!anyRunning) { isTransportRunning = false; document.getElementById('master-time').innerText = "1:1"; }
             
@@ -459,7 +486,6 @@
             isTransportRunning = false;
             document.getElementById('looper-status').innerText = "ALL STOPPED";
             document.getElementById('master-time').innerText = "1:1";
-            if (isMetroOn) toggleMetronome(); // Kill metro on full stop
         }
 
         function stopTrackNotes(t) {
@@ -469,36 +495,44 @@
         }
 
         // ==========================================
-        // === V28 BULLETPROOF MASTER ENGINE ========
+        // === V29 LAG SHIELD & LOOP PLAYBACK =======
         // ==========================================
         function masterEngine() {
             let nowGlobal = performance.now();
             
             if (isTransportRunning) {
+                
+                // V29: THE LAG SHIELD (Prevents browser catch-up clusters)
+                let frameDelta = nowGlobal - lastFrameTimeGlobal;
+                if (frameDelta > 150 && lastFrameTimeGlobal > 0) {
+                    tracks.forEach(t => {
+                        if (t.state === "PLAYING" || t.state === "OVERDUB") {
+                            t.lastPlayTime = (nowGlobal - globalTransportStart) % t.duration;
+                        }
+                    });
+                    lastFrameTimeGlobal = nowGlobal;
+                    requestAnimationFrame(masterEngine);
+                    return; 
+                }
+                lastFrameTimeGlobal = nowGlobal;
+
                 let masterTime = nowGlobal - globalTransportStart;
                 
-                // UPDATE VISUAL BARS:BEATS DISPLAY
                 let bpm = parseFloat(document.getElementById('bpm-slider').value);
                 let beatMs = 60000 / bpm;
                 let totalBeats = Math.floor(masterTime / beatMs);
-                let bar = Math.floor(totalBeats / 4) + 1;
-                let beat = (totalBeats % 4) + 1;
-                document.getElementById('master-time').innerText = `${bar}:${beat}`;
+                document.getElementById('master-time').innerText = `${Math.floor(totalBeats / 4) + 1}:${(totalBeats % 4) + 1}`;
                 
-                // METRONOME (Audio Chip Sync)
                 if (isMetroOn && audioCtx) {
-                    if (nextClickMasterTime < masterTime + 100) { // Look ahead 100ms
+                    if (nextClickMasterTime < masterTime + 100) {
                         let deltaMs = nextClickMasterTime - masterTime;
                         let scheduleTime = audioCtx.currentTime + (deltaMs / 1000);
                         if (scheduleTime < audioCtx.currentTime) scheduleTime = audioCtx.currentTime;
-                        
-                        let isDownbeat = (Math.round(nextClickMasterTime / beatMs) % 4 === 0);
-                        playClick(isDownbeat, scheduleTime);
+                        playClick((Math.round(nextClickMasterTime / beatMs) % 4 === 0), scheduleTime);
                         nextClickMasterTime += beatMs;
                     }
                 }
                 
-                // MIDI LOOP PLAYBACK
                 tracks.forEach(t => {
                     if (t.state === "PLAYING" || t.state === "OVERDUB") {
                         if (t.duration === 0) return; 
@@ -506,14 +540,13 @@
                         let currentPos = masterTime % t.duration;
                         let lastPos = t.lastPlayTime;
                         
-                        // WRAPPED BOUNDARY! (Modulo reset)
+                        // WRAPPED BOUNDARY!
                         if (currentPos < lastPos) { 
-                            // 1. Play remaining notes to end
                             t.data.forEach(ev => { if (ev.time > lastPos && ev.time < t.duration && midiOutput) midiOutput.send(ev.data); trackPolyphony(t, ev); });
                             
-                            // (NO GUILLOTINE PURGE! Notes gracefully bleed over boundary)
+                            // V29 REAL-TIME OVERDUB FLUSH: Merges your new layer immediately on boundary
+                            if (t.state === "OVERDUB") flushOverdubBuffer(t);
 
-                            // 2. Play new notes from 0
                             t.data.forEach(ev => { if (ev.time >= 0 && ev.time <= currentPos && midiOutput) midiOutput.send(ev.data); trackPolyphony(t, ev); });
                         } else { 
                             // NORMAL PLAYBACK
@@ -522,6 +555,8 @@
                         t.lastPlayTime = currentPos;
                     }
                 });
+            } else {
+                lastFrameTimeGlobal = nowGlobal;
             }
             requestAnimationFrame(masterEngine); 
         }
@@ -557,10 +592,11 @@
 
             const isNoteEvent = (type === 0x80 || type === 0x90); const isNoteOn = (type === 0x90 && data2 > 0); const isNoteOff = (type === 0x80 || (type === 0x90 && data2 === 0));
 
-            // V28 INDEPENDENT TRIGGER: Starts global grid instantly on first keypress
+            // V29 INSTANT GRID TRIGGER
             if (t.state === "ARMED" && isNoteOn) {
                 if (!isTransportRunning) { globalTransportStart = performance.now(); isTransportRunning = true; }
                 t.state = "RECORDING"; 
+                t.recordStartTime = performance.now() - globalTransportStart;
                 updateTrackStatusUI(activeTrackIndex); document.getElementById('looper-status').innerText = "RECORDING";
             }
             
