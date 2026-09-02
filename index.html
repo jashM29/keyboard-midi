@@ -8,7 +8,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#0a0a0c">
     
-    <title>JDAW Mobile App (V26.8 - Seamless Looper)</title>
+    <title>JDAW Mobile App (V26.9 - FL Looper Engine)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
     
     <style>
@@ -81,6 +81,10 @@
         .mpc-pad.selected { border-color: var(--neon-cyan); box-shadow: 0 0 10px rgba(0,229,255,0.4); color: #fff; }
         .mpc-pad.state-ARMED { border-color: var(--neon-red); background: #3a000d; color: var(--neon-red); }
         .mpc-pad.state-RECORDING { background: #ff2a55; color: #fff; box-shadow: 0 0 15px rgba(255,42,85,0.8); }
+        
+        /* NEW: Overdub State Color */
+        .mpc-pad.state-OVERDUB { background: #ffaa00; color: #000; box-shadow: 0 0 15px rgba(255,170,0,0.8); }
+        
         .mpc-pad.state-PLAYING { background: #b37700; color: #fff; box-shadow: 0 0 15px rgba(255,170,0,0.6); }
         .mpc-pad.state-STOPPED { color: var(--neon-green); border-color: var(--neon-green); }
         
@@ -352,7 +356,7 @@
         }
 
         // ==========================================
-        // === V26.8 SEAMLESS LOOPER ENGINE =========
+        // === V26.9 OVERDUB & BLEED ENGINE =========
         // ==========================================
         let tracks = []; let activeTrackIndex = 0; const tracksContainer = document.getElementById('tracks-container');
         for (let i = 0; i < 16; i++) {
@@ -362,24 +366,24 @@
         }
 
         function finalizeLoop(t) {
-            let durationMs = performance.now() - t.startTime;
-            
-            if (isMetroOn) {
-                // Synced Looping
-                let bpm = parseFloat(document.getElementById('bpm-slider').value); 
-                let measureMs = (60000 / bpm) * 4; 
-                let completedMeasures = Math.max(1, Math.round(durationMs / measureMs)); 
-                t.duration = completedMeasures * measureMs;
-            } else {
-                // RESTORED: Free Looping
-                t.duration = durationMs; 
+            // Only set duration if this is the FIRST recording pass.
+            // If Overdubbing, duration is already locked.
+            if (t.duration === 0) {
+                let durationMs = performance.now() - t.startTime;
+                if (isMetroOn) {
+                    let bpm = parseFloat(document.getElementById('bpm-slider').value); 
+                    let measureMs = (60000 / bpm) * 4; 
+                    let completedMeasures = Math.max(1, Math.round(durationMs / measureMs)); 
+                    t.duration = completedMeasures * measureMs;
+                } else {
+                    t.duration = durationMs; 
+                }
             }
 
             let cleanData = [];
             let activeKeys = {};
             
             t.data.forEach(ev => {
-                // V26.8 PATCH: Loop Foldback. Late downbeats magically fold around to time 0.
                 let wrappedTime = ev.time % t.duration;
                 cleanData.push({ data: ev.data, time: wrappedTime });
                 
@@ -388,9 +392,12 @@
                 else if (cmd === 0x80 || (cmd === 0x90 && vel === 0)) delete activeKeys[note];
             });
             
-            // Prevent hanging notes for keys held past the boundary
+            // FL STUDIO BLEED MAGIC: No Guillotine! 
+            // If a key is held past the boundary, we place the Note-Off 150ms into the NEXT measure.
+            // This lets chords ring over the loop line perfectly.
+            let bleedTime = 150; 
             for (let note in activeKeys) {
-                cleanData.push({ data: new Uint8Array([0x80 | t.channel, parseInt(note), 0]), time: t.duration - 1 });
+                cleanData.push({ data: new Uint8Array([0x80 | t.channel, parseInt(note), 0]), time: bleedTime });
             }
             
             t.data = cleanData.sort((a,b) => a.time - b.time);
@@ -422,7 +429,7 @@
 
         function updateTrackStatusUI(index) {
             let t = tracks[index]; let btn = document.getElementById(`btn-trk-${index}`);
-            btn.classList.remove('state-ARMED', 'state-RECORDING', 'state-PLAYING', 'state-STOPPED');
+            btn.classList.remove('state-ARMED', 'state-RECORDING', 'state-OVERDUB', 'state-PLAYING', 'state-STOPPED');
             if (t.state !== "EMPTY") btn.classList.add(`state-${t.state}`);
             if (activeTrackMode === 'MIDI' && activeTrackIndex === index) updateActionButtonsUI();
         }
@@ -430,7 +437,7 @@
         function updateActionButtonsUI() {
             let t = tracks[activeTrackIndex]; let btnRec = document.getElementById('loop-rec'); let btnPlay = document.getElementById('loop-play');
             btnRec.classList.remove('active'); btnPlay.classList.remove('active');
-            if (t.state === "ARMED" || t.state === "RECORDING") btnRec.classList.add('active');
+            if (t.state === "ARMED" || t.state === "RECORDING" || t.state === "OVERDUB") btnRec.classList.add('active');
             if (t.state === "PLAYING") btnPlay.classList.add('active');
         }
 
@@ -438,24 +445,31 @@
             initAudio(); 
             let t = tracks[activeTrackIndex];
             
-            if (t.state === "RECORDING") { 
-                if (t.data.length > 0) {
-                    finalizeLoop(t);
-                    t.state = "PLAYING"; 
-                    // V26.8: Seamless Transition (Do not reset clock)
+            if (t.state === "RECORDING" || t.state === "OVERDUB") { 
+                if (t.data.length > 0) finalizeLoop(t);
+                t.state = "PLAYING"; 
+                // Seamless playback without resetting time
+                if (t.startTime > 0 && t.state === "RECORDING") {
                     t.playStartTime = t.startTime; 
                     t.lastPlayTime = (performance.now() - t.startTime) % t.duration;
-                    document.getElementById('looper-status').innerText = "LOOPING";
-                } else {
-                    t.state = "EMPTY"; 
-                    document.getElementById('looper-status').innerText = "READY";
                 }
+                document.getElementById('looper-status').innerText = "LOOPING"; 
             } 
+            else if (t.state === "PLAYING") {
+                t.state = "OVERDUB"; // Layer without erasing!
+                document.getElementById('looper-status').innerText = "OVERDUBBING"; 
+            }
+            else if (t.state === "STOPPED" && t.data.length > 0) { 
+                t.state = "OVERDUB"; 
+                t.playStartTime = performance.now(); 
+                t.lastPlayTime = 0; 
+                document.getElementById('looper-status').innerText = "OVERDUBBING"; 
+            }
             else if (t.state === "ARMED") {
                 t.state = "EMPTY"; document.getElementById('looper-status').innerText = "READY";
             }
             else { 
-                t.state = "ARMED"; t.data = []; t.lastPlayTime = 0; stopTrackNotes(activeTrackIndex); 
+                t.state = "ARMED"; t.data = []; t.duration = 0; t.lastPlayTime = 0; stopTrackNotes(activeTrackIndex); 
                 document.getElementById('looper-status').innerText = isMetroOn ? "WAITING FOR SYNC..." : "ARMED..."; 
             }
             updateTrackStatusUI(activeTrackIndex);
@@ -466,17 +480,18 @@
             if (t.state === "PLAYING") { 
                 t.state = "STOPPED"; stopTrackNotes(activeTrackIndex); document.getElementById('looper-status').innerText = "STOPPED"; 
             } 
-            else if (t.state === "RECORDING") {
+            else if (t.state === "RECORDING" || t.state === "OVERDUB") {
                 finalizeLoop(t);
                 t.state = "PLAYING"; 
-                // V26.8: Seamless Transition (Do not reset clock)
-                t.playStartTime = t.startTime; 
-                t.lastPlayTime = (performance.now() - t.startTime) % t.duration; 
+                if (t.state === "RECORDING") {
+                    t.playStartTime = t.startTime; 
+                    t.lastPlayTime = (performance.now() - t.startTime) % t.duration; 
+                }
                 document.getElementById('looper-status').innerText = "LOOPING";
             } 
             else if (t.state === "STOPPED" && t.data.length > 0) { 
                 t.state = "PLAYING"; 
-                t.playStartTime = performance.now(); // Free Play Start
+                t.playStartTime = performance.now(); 
                 t.lastPlayTime = 0; 
                 document.getElementById('looper-status').innerText = "LOOPING"; 
             }
@@ -488,8 +503,8 @@
 
         function stopAllTracks() {
             tracks.forEach((t, i) => { 
-                if (t.state === "PLAYING" || t.state === "RECORDING" || t.state === "ARMED") { 
-                    if (t.state === "RECORDING" && t.data.length > 0) finalizeLoop(t);
+                if (t.state === "PLAYING" || t.state === "RECORDING" || t.state === "OVERDUB" || t.state === "ARMED") { 
+                    if ((t.state === "RECORDING" || t.state === "OVERDUB") && t.data.length > 0) finalizeLoop(t);
                     t.state = (t.data.length > 0) ? "STOPPED" : "EMPTY"; stopTrackNotes(i); updateTrackStatusUI(i); 
                 }
             });
@@ -504,7 +519,7 @@
         function masterEngine() {
             let nowGlobal = performance.now();
             
-            // METRONOME HARDWARE SCHEDULING
+            // METRONOME
             if (isMetroOn && audioCtx) {
                 let bpm = parseFloat(document.getElementById('bpm-slider').value);
                 let secPerBeat = 60.0 / bpm;
@@ -533,36 +548,35 @@
             
             // LOOP PLAYBACK
             tracks.forEach(t => {
-                if (t.state === "PLAYING") {
+                if (t.state === "PLAYING" || t.state === "OVERDUB") {
                     let currentPos = (nowGlobal - t.playStartTime) % t.duration;
                     
-                    if (currentPos < t.lastPlayTime) {
+                    if (currentPos < t.lastPlayTime) { // WRAP AROUND HAPPENED
+                        
+                        // Play remaining notes to end of boundary
                         t.data.forEach(ev => {
                             if (ev.time >= t.lastPlayTime && ev.time < t.duration) {
                                 if (midiOutput) midiOutput.send(ev.data);
+                                trackPolyphony(t, ev);
                             }
                         });
                         
-                        t.activeNotes.forEach(note => { if(midiOutput) midiOutput.send([0x80 | t.channel, note, 0]); });
-                        t.activeNotes = [];
-                        
+                        // *** THE GUILLOTINE PURGE HAS BEEN PERMANENTLY REMOVED HERE ***
+                        // Notes will now perfectly ring over the loop line!
+
+                        // Play notes from the beginning of loop
                         t.data.forEach(ev => {
                             if (ev.time >= 0 && ev.time <= currentPos) {
                                 if (midiOutput) midiOutput.send(ev.data);
-                                let cmd = ev.data[0] & 0xF0; let note = ev.data[1]; let vel = ev.data[2];
-                                if (cmd === 0x90 && vel > 0) t.activeNotes.push(note);
+                                trackPolyphony(t, ev);
                             }
                         });
                         
-                    } else {
+                    } else { // NORMAL PLAYBACK
                         t.data.forEach(ev => {
                             if (ev.time > t.lastPlayTime && ev.time <= currentPos) {
                                 if (midiOutput) midiOutput.send(ev.data);
-                                let cmd = ev.data[0] & 0xF0; let note = ev.data[1]; let vel = ev.data[2];
-                                if (cmd === 0x90 && vel > 0) t.activeNotes.push(note);
-                                else if (cmd === 0x80 || (cmd === 0x90 && vel === 0)) {
-                                    t.activeNotes = t.activeNotes.filter(n => n !== note);
-                                }
+                                trackPolyphony(t, ev);
                             }
                         });
                     }
@@ -572,6 +586,16 @@
             requestAnimationFrame(masterEngine); 
         }
         requestAnimationFrame(masterEngine); 
+
+        function trackPolyphony(t, ev) {
+            let cmd = ev.data[0] & 0xF0; let note = ev.data[1]; let vel = ev.data[2];
+            if (cmd === 0x90 && vel > 0) {
+                if (!t.activeNotes.includes(note)) t.activeNotes.push(note);
+            }
+            else if (cmd === 0x80 || (cmd === 0x90 && vel === 0)) {
+                t.activeNotes = t.activeNotes.filter(n => n !== note);
+            }
+        }
 
         // ==========================================
         // === MIDI ROUTING =========================
@@ -613,10 +637,18 @@
                 }
             }
             
+            // NEW: Record OR Overdub!
             if (t.state === "RECORDING") {
                 if (type >= 0x80 && type <= 0xE0) { 
                     const eventTime = performance.now() - t.startTime; 
                     t.data.push({ data: new Uint8Array(outData), time: eventTime });
+                }
+            }
+            else if (t.state === "OVERDUB") {
+                if (type >= 0x80 && type <= 0xE0) { 
+                    // Overdub drops the note at the exact current position of the loop
+                    const currentPos = (performance.now() - t.playStartTime) % t.duration;
+                    t.data.push({ data: new Uint8Array(outData), time: currentPos });
                 }
             }
             
