@@ -8,7 +8,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#121318">
     
-    <title>JDAW Mobile (V29.1 Broadcast Patch)</title>
+    <title>JDAW Mobile (V29.2 UI Restored)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
     
     <style>
@@ -50,11 +50,12 @@
         }
         @media (min-width: 600px) { .master-console { flex-direction: row; justify-content: space-between; align-items: center; } }
 
-        .oled-group { display: flex; gap: 20px; justify-content: space-between; width: 100%; }
-        .oled-block { display: flex; flex-direction: column; font-family: 'Share Tech Mono', monospace; }
-        .oled-lbl { color: #516b80; font-size: 0.6rem; font-family: 'Inter', sans-serif; font-weight: 900; letter-spacing: 1px; margin-bottom: 2px;}
+        .oled-group { display: flex; gap: 10px; justify-content: space-between; width: 100%; }
+        .oled-block { display: flex; flex-direction: column; font-family: 'Share Tech Mono', monospace; flex: 1;}
+        .oled-lbl { color: #516b80; font-size: 0.65rem; font-family: 'Inter', sans-serif; font-weight: 900; letter-spacing: 1px; margin-bottom: 2px;}
         .oled-val { color: var(--daw-blue); font-size: 1.6rem; text-shadow: 0 0 8px rgba(0,210,255,0.4); }
         .oled-val.orange { color: var(--daw-orange); text-shadow: 0 0 8px rgba(255,115,0,0.4); }
+        .oled-val.green { color: var(--daw-green); text-shadow: 0 0 8px rgba(0,250,154,0.4); }
 
         .transport-controls { display: flex; gap: 10px; width: 100%; justify-content: center; }
         .t-btn {
@@ -110,20 +111,20 @@
 
     <div class="daw-chassis">
         
-        <!-- MASTER CONSOLE -->
+        <!-- MASTER CONSOLE (RESTORED UI) -->
         <div class="master-console full-width">
             <div class="oled-group">
-                <div class="oled-block">
+                <div class="oled-block" style="text-align: left;">
                     <span class="oled-lbl">BEAT SYNC</span>
                     <span class="oled-val orange" id="master-time">1:1</span>
                 </div>
-                <div class="oled-block">
-                    <span class="oled-lbl">EDIT TARGET</span>
+                <div class="oled-block" style="text-align: center;">
+                    <span class="oled-lbl">TRACK</span>
                     <span class="oled-val" id="display-active-track" style="color:#fff;">TRK 1</span>
                 </div>
                 <div class="oled-block" style="text-align: right;">
-                    <span class="oled-lbl">MIDI IN</span>
-                    <span class="oled-val" id="midi-note" style="color:var(--daw-green);">--</span>
+                    <span class="oled-lbl">CASIO TONE</span>
+                    <span class="oled-val green" id="current-tone">---</span>
                 </div>
             </div>
             <div class="transport-controls">
@@ -137,7 +138,7 @@
         <div style="display: flex; flex-direction: column; gap: 15px;">
             <div class="module" style="border-top-color: var(--daw-green);">
                 <div class="m-title">
-                    <span style="color:var(--daw-green);">16-TRACK AUTO-MEASURE LOOPER</span>
+                    <span style="color:var(--daw-green);">16-TRACK PRO LOOPER</span>
                     <span id="looper-status" style="color:#fff;">READY</span>
                 </div>
                 <div class="pad-grid" id="tracks-container"></div>
@@ -168,8 +169,11 @@
                 </div>
 
                 <div class="module" style="border-top-color: #fff;">
-                    <div class="m-title">CASIO TONE & CC ENGINE</div>
-                    <div style="text-align:center; margin-bottom:8px; color:var(--daw-blue); font-weight:900;" id="current-tone">---</div>
+                    <!-- MIDI IN has been tucked neatly into this title bar! -->
+                    <div class="m-title">
+                        <span>SYNTH ENGINE</span>
+                        <span style="color:var(--daw-green);">IN: <span id="midi-note">--</span></span>
+                    </div>
                     <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;" id="knobs-container"></div>
                 </div>
             </div>
@@ -179,9 +183,9 @@
 
     <script>
         // ==========================================
-        // === V29.1 THE GHOST PORT BROADCASTER =====
+        // === V29.2 ENGINE (UNCHANGED LOGIC) =======
         // ==========================================
-        let midiOutputs = []; // Array to hold ALL detected ports
+        let midiOutputs = []; 
         let activeTrackIndex = 0; 
         let globalCurrentTone = "---"; 
         
@@ -193,7 +197,6 @@
         let isTransportRunning = false;
         let lastFrameTimeGlobal = 0;
 
-        // V29.1 Broadcast Function
         function sendMidiOut(data) {
             midiOutputs.forEach(out => {
                 try { out.send(data); } catch(e) {}
@@ -585,7 +588,6 @@
 
             let outData = Array.from(message.data);
             
-            // Send incoming note back to keyboard to play it (Broadcast to all ports)
             if (type >= 0x80 && type <= 0xE0) { outData[0] = type | t.channel; sendMidiOut(outData); }
 
             const isNoteEvent = (type === 0x80 || type === 0x90); const isNoteOn = (type === 0x90 && data2 > 0); const isNoteOff = (type === 0x80 || (type === 0x90 && data2 === 0));
