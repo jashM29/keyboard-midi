@@ -8,7 +8,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#121318">
     
-    <title>JDAW Mobile (V29 Flawless Engine)</title>
+    <title>JDAW Mobile (V29.1 Broadcast Patch)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
     
     <style>
@@ -122,8 +122,8 @@
                     <span class="oled-val" id="display-active-track" style="color:#fff;">TRK 1</span>
                 </div>
                 <div class="oled-block" style="text-align: right;">
-                    <span class="oled-lbl">CASIO TONE</span>
-                    <span class="oled-val" id="current-tone">---</span>
+                    <span class="oled-lbl">MIDI IN</span>
+                    <span class="oled-val" id="midi-note" style="color:var(--daw-green);">--</span>
                 </div>
             </div>
             <div class="transport-controls">
@@ -137,7 +137,7 @@
         <div style="display: flex; flex-direction: column; gap: 15px;">
             <div class="module" style="border-top-color: var(--daw-green);">
                 <div class="m-title">
-                    <span style="color:var(--daw-green);">16-TRACK PRO LOOPER</span>
+                    <span style="color:var(--daw-green);">16-TRACK AUTO-MEASURE LOOPER</span>
                     <span id="looper-status" style="color:#fff;">READY</span>
                 </div>
                 <div class="pad-grid" id="tracks-container"></div>
@@ -168,7 +168,8 @@
                 </div>
 
                 <div class="module" style="border-top-color: #fff;">
-                    <div class="m-title">SYNTHESIS ENGINE</div>
+                    <div class="m-title">CASIO TONE & CC ENGINE</div>
+                    <div style="text-align:center; margin-bottom:8px; color:var(--daw-blue); font-weight:900;" id="current-tone">---</div>
                     <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;" id="knobs-container"></div>
                 </div>
             </div>
@@ -178,9 +179,9 @@
 
     <script>
         // ==========================================
-        // === V29 FLAWLESS MATHEMATICAL CLOCK ======
+        // === V29.1 THE GHOST PORT BROADCASTER =====
         // ==========================================
-        let midiOutput = null; 
+        let midiOutputs = []; // Array to hold ALL detected ports
         let activeTrackIndex = 0; 
         let globalCurrentTone = "---"; 
         
@@ -190,7 +191,14 @@
         
         let globalTransportStart = null; 
         let isTransportRunning = false;
-        let lastFrameTimeGlobal = 0; // The Lag Shield Tracker
+        let lastFrameTimeGlobal = 0;
+
+        // V29.1 Broadcast Function
+        function sendMidiOut(data) {
+            midiOutputs.forEach(out => {
+                try { out.send(data); } catch(e) {}
+            });
+        }
 
         const knobMappings = [
             { id: "K1", name: "Cutoff", cc: 74, default: 64 }, { id: "K2", name: "Reso", cc: 71, default: 64 },
@@ -240,7 +248,7 @@
         function handleControlMove(controlId, ccNumber, value) {
             document.getElementById(`display-${controlId}`).innerText = value; let val = parseInt(value);
             let t = tracks[activeTrackIndex]; t.params[ccNumber] = val; 
-            if (midiOutput) midiOutput.send([0xB0 | t.channel, ccNumber, val]);
+            sendMidiOut([0xB0 | t.channel, ccNumber, val]);
         }
 
         function initAudio() { 
@@ -313,10 +321,10 @@
                 btnStore.innerText = "SAVED!"; setTimeout(() => btnStore.innerText = "STORE", 1000);
             } else {
                 let reg = registrations[index]; if (!reg) return; 
-                if (midiOutput && reg.programNumber !== "---") midiOutput.send([0xC0 | tracks[activeTrackIndex].channel, parseInt(reg.programNumber) - 1]);
+                if (reg.programNumber !== "---") sendMidiOut([0xC0 | tracks[activeTrackIndex].channel, parseInt(reg.programNumber) - 1]);
                 globalCurrentTone = reg.programNumber; document.getElementById('current-tone').innerText = reg.programNumber;
                 let t = tracks[activeTrackIndex]; t.params = { ...reg.params }; syncUIToTrack(t);
-                for (let cc in t.params) if (midiOutput) midiOutput.send([0xB0 | tracks[activeTrackIndex].channel, parseInt(cc), t.params[cc]]);
+                for (let cc in t.params) sendMidiOut([0xB0 | tracks[activeTrackIndex].channel, parseInt(cc), t.params[cc]]);
             }
         }
 
@@ -342,9 +350,9 @@
             document.getElementById('current-tone').innerText = t.params.program !== undefined ? t.params.program : "---";
             syncUIToTrack(t); updateActionButtonsUI();
             
-            if (midiOutput && t.params.program !== "---") {
-                midiOutput.send([0xC0 | t.channel, parseInt(t.params.program) - 1]);
-                for (let cc in t.params) if (cc !== 'program') midiOutput.send([0xB0 | t.channel, parseInt(cc), t.params[cc]]);
+            if (t.params.program !== "---") {
+                sendMidiOut([0xC0 | t.channel, parseInt(t.params.program) - 1]);
+                for (let cc in t.params) if (cc !== 'program') sendMidiOut([0xB0 | t.channel, parseInt(cc), t.params[cc]]);
             }
         }
 
@@ -365,21 +373,19 @@
         function flushOverdubBuffer(t) {
             if (t.rawBuffer.length === 0) return;
 
-            // Merge buffer into track data
             t.rawBuffer.forEach(ev => {
                 t.data.push({ data: ev.data, time: ev.absoluteTime % t.duration });
             });
             t.rawBuffer = [];
             t.data.sort((a,b) => a.time - b.time);
 
-            // V29: 5-Millisecond Deduplication algorithm (Kills the cluster glitch forever)
             let uniqueData = [];
             for(let i = 0; i < t.data.length; i++) {
                 if (i > 0 && 
                     Math.abs(t.data[i].time - t.data[i-1].time) < 5 && 
                     t.data[i].data[0] === t.data[i-1].data[0] &&
                     t.data[i].data[1] === t.data[i-1].data[1]) {
-                    continue; // Skip exact duplicate note sent within 5ms
+                    continue; 
                 }
                 uniqueData.push(t.data[i]);
             }
@@ -389,20 +395,15 @@
         function finalizeLoop(t) {
             let masterTime = performance.now() - globalTransportStart;
             
-            // V29 INDEPENDENT BPM AUTO-DETECT
             if (t.duration === 0) { 
                 let rawDur = masterTime - t.recordStartTime; 
                 
                 if (isMetroOn) {
-                    // Lock perfectly to Metronome Grid
                     let bpm = parseFloat(document.getElementById('bpm-slider').value); 
                     let measureMs = (60000 / bpm) * 4; 
                     t.duration = Math.max(1, Math.round(rawDur / measureMs)) * measureMs;
                 } else {
-                    // Truly independent duration based exactly on what was played!
                     t.duration = rawDur;
-                    
-                    // Auto-Detect the BPM 
                     let calcBpm = (60000 / (t.duration / 4));
                     while (calcBpm < 60) calcBpm *= 2;
                     while (calcBpm > 180) calcBpm /= 2;
@@ -412,7 +413,6 @@
                 }
             }
 
-            // Close any keys held at the exact moment of Stop
             t.recordActiveNotes.forEach(note => {
                 t.rawBuffer.push({ data: new Uint8Array([0x80 | t.channel, parseInt(note), 0]), absoluteTime: masterTime });
             });
@@ -469,7 +469,6 @@
                 t.state = "EMPTY"; document.getElementById('looper-status').innerText = "READY";
             }
             
-            // Auto pause master clock if silence
             let anyRunning = tracks.some(trk => trk.state === "PLAYING" || trk.state === "RECORDING" || trk.state === "OVERDUB");
             if (!anyRunning) { isTransportRunning = false; document.getElementById('master-time').innerText = "1:1"; }
             
@@ -489,9 +488,8 @@
         }
 
         function stopTrackNotes(t) {
-            if (!midiOutput) return;
-            t.activeNotes.forEach(note => { midiOutput.send([0x80 | t.channel, note, 0]); }); t.activeNotes = [];
-            t.recordActiveNotes.forEach(note => { midiOutput.send([0x80 | t.channel, note, 0]); }); t.recordActiveNotes.clear();
+            t.activeNotes.forEach(note => { sendMidiOut([0x80 | t.channel, note, 0]); }); t.activeNotes = [];
+            t.recordActiveNotes.forEach(note => { sendMidiOut([0x80 | t.channel, note, 0]); }); t.recordActiveNotes.clear();
         }
 
         // ==========================================
@@ -502,7 +500,6 @@
             
             if (isTransportRunning) {
                 
-                // V29: THE LAG SHIELD (Prevents browser catch-up clusters)
                 let frameDelta = nowGlobal - lastFrameTimeGlobal;
                 if (frameDelta > 150 && lastFrameTimeGlobal > 0) {
                     tracks.forEach(t => {
@@ -540,17 +537,12 @@
                         let currentPos = masterTime % t.duration;
                         let lastPos = t.lastPlayTime;
                         
-                        // WRAPPED BOUNDARY!
                         if (currentPos < lastPos) { 
-                            t.data.forEach(ev => { if (ev.time > lastPos && ev.time < t.duration && midiOutput) midiOutput.send(ev.data); trackPolyphony(t, ev); });
-                            
-                            // V29 REAL-TIME OVERDUB FLUSH: Merges your new layer immediately on boundary
+                            t.data.forEach(ev => { if (ev.time > lastPos && ev.time < t.duration) sendMidiOut(ev.data); trackPolyphony(t, ev); });
                             if (t.state === "OVERDUB") flushOverdubBuffer(t);
-
-                            t.data.forEach(ev => { if (ev.time >= 0 && ev.time <= currentPos && midiOutput) midiOutput.send(ev.data); trackPolyphony(t, ev); });
+                            t.data.forEach(ev => { if (ev.time >= 0 && ev.time <= currentPos) sendMidiOut(ev.data); trackPolyphony(t, ev); });
                         } else { 
-                            // NORMAL PLAYBACK
-                            t.data.forEach(ev => { if (ev.time > lastPos && ev.time <= currentPos && midiOutput) midiOutput.send(ev.data); trackPolyphony(t, ev); });
+                            t.data.forEach(ev => { if (ev.time > lastPos && ev.time <= currentPos) sendMidiOut(ev.data); trackPolyphony(t, ev); });
                         }
                         t.lastPlayTime = currentPos;
                     }
@@ -576,10 +568,14 @@
         });
 
         function onMIDISuccess(midiAccess) {
+            midiOutputs = []; 
             for (let input of midiAccess.inputs.values()) input.onmidimessage = handleMIDIMessage;
-            for (let output of midiAccess.outputs.values()) midiOutput = output; 
-            if (midiOutput) {
-                let el = document.getElementById('status-bar'); el.innerText = "STUDIO LINK ACTIVE"; el.style.background = "var(--daw-green)"; el.style.color = "#000"; el.style.boxShadow = "0 0 15px var(--daw-green)";
+            for (let output of midiAccess.outputs.values()) midiOutputs.push(output); 
+            
+            if (midiOutputs.length > 0) {
+                let el = document.getElementById('status-bar'); 
+                el.innerText = "STUDIO LINK ACTIVE (" + midiOutputs.length + " PORTS)"; 
+                el.style.background = "var(--daw-green)"; el.style.color = "#000"; el.style.boxShadow = "0 0 15px var(--daw-green)";
             }
         }
 
@@ -588,11 +584,12 @@
             let t = tracks[activeTrackIndex];
 
             let outData = Array.from(message.data);
-            if (type >= 0x80 && type <= 0xE0) { outData[0] = type | t.channel; if (midiOutput) midiOutput.send(outData); }
+            
+            // Send incoming note back to keyboard to play it (Broadcast to all ports)
+            if (type >= 0x80 && type <= 0xE0) { outData[0] = type | t.channel; sendMidiOut(outData); }
 
             const isNoteEvent = (type === 0x80 || type === 0x90); const isNoteOn = (type === 0x90 && data2 > 0); const isNoteOff = (type === 0x80 || (type === 0x90 && data2 === 0));
 
-            // V29 INSTANT GRID TRIGGER
             if (t.state === "ARMED" && isNoteOn) {
                 if (!isTransportRunning) { globalTransportStart = performance.now(); isTransportRunning = true; }
                 t.state = "RECORDING"; 
@@ -600,7 +597,6 @@
                 updateTrackStatusUI(activeTrackIndex); document.getElementById('looper-status').innerText = "RECORDING";
             }
             
-            // RECORDING & OVERDUBBING
             if (type >= 0x80 && type <= 0xE0) { 
                 if (t.state === "RECORDING" || t.state === "OVERDUB") {
                     let masterTime = performance.now() - globalTransportStart;
@@ -615,7 +611,7 @@
             else if (type === 0xC0) { 
                 globalCurrentTone = data1 + 1; document.getElementById('current-tone').innerText = globalCurrentTone;
                 t.params.program = globalCurrentTone; 
-                setTimeout(() => { if (midiOutput) { for (let cc in t.params) if (cc !== 'program') midiOutput.send([0xB0 | t.channel, parseInt(cc), t.params[cc]]); } }, 20); 
+                setTimeout(() => { for (let cc in t.params) if (cc !== 'program') sendMidiOut([0xB0 | t.channel, parseInt(cc), t.params[cc]]); }, 20); 
             }
         }
     </script>
